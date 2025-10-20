@@ -35,13 +35,15 @@
   .genbox{border:2px solid #ef4444;border-radius:10px;padding:12px;min-height:110px;white-space:pre-wrap;background:#fff}
   .hr{border:none;border-top:1px dashed #9ca3af;margin:14px 0}
   .pill{display:inline-block;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px;padding:2px 8px;font-size:11px;color:#3730a3}
+  details{margin-top:8px}
+  summary{cursor:pointer;font-size:12px;color:#4b5563}
+  pre{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px;overflow:auto;font-size:12px}
 </style>
 </head>
 <body>
   <h1>ご家族さま向けお知らせ・生成モック（AI Studio無料枠 / 自動モデル検出）</h1>
   <p class="sub">
-    <span class="pill" id="engineState">Engine: 検出中…</span><br>
-    ※GitHub Pagesで動かす場合、AI Studioキーの Allowed domains に <code>https://masuyamayuki-hub.github.io</code> を登録してください。
+    <span class="pill" id="engineState">Engine: 検出中…</span>
   </p>
 
   <div class="grid">
@@ -67,9 +69,8 @@
 
         <div id="ok" class="ok"></div>
         <div id="err" class="error"></div>
-        <p class="hint">
-          キーにドメイン制限（Allowed domains）がある場合は <code id="originBox"></code> を登録。
-        </p>
+        <p class="hint">ドメイン制限を使う場合は <code id="originBox"></code> を AI Studio の Allowed domains / HTTPリファラー制限に登録してください。</p>
+        <details id="debugBox" style="display:none"><summary>デバッグ（API生レスポンス）</summary><pre id="debugPre"></pre></details>
       </div>
     </section>
 
@@ -92,7 +93,7 @@
   </div>
 
 <script>
-  // ====== 指定のAI Studio APIキー ======
+  // ====== AI Studio APIキー（指定の値） ======
   const RAW_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
   const API_KEY = RAW_KEY.trim();
 
@@ -104,6 +105,8 @@
   const ok = $('#ok');
   const err = $('#err');
   const engineState = $('#engineState');
+  const debugBox = $('#debugBox');
+  const debugPre = $('#debugPre');
 
   const originBox = $('#originBox');
   if (originBox) originBox.textContent = location.origin || "(file:// は不可。httpサーバで開いてください)";
@@ -168,7 +171,7 @@
     ].join("\\n");
   }
 
-  // ========= API呼び出し（新旧レスポンス両対応） =========
+  // ========= API呼び出し（安全フィルタ・新旧スキーマ対応） =========
   async function callGemini(prompt){
     const url = `${BASE}/models/${MODEL}:generateContent?key=${encodeURIComponent(API_KEY)}`;
     const res = await fetch(url, {
@@ -179,13 +182,26 @@
         generationConfig: { maxOutputTokens: 256, temperature: 0.7 }
       })
     });
-    if(!res.ok){
-      const t = await res.text().catch(()=>String(res.status));
-      throw new Error(`Gemini API error: ${res.status}\n${t}`);
-    }
-    const data = await res.json();
+    const rawText = await res.text();
+    let data = null;
+    try { data = JSON.parse(rawText); } catch { /* noop */ }
 
-    // --- 新旧スキーマ対応でテキストを取り出す ---
+    if(!res.ok){
+      throw new Error(`Gemini API error: ${res.status}\n${rawText}`);
+    }
+
+    // デバッグ表示
+    debugBox.style.display = 'block';
+    debugPre.textContent = rawText;
+
+    // 安全フィードバックによるブロック検出
+    const block = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
+    if (block && String(block).toUpperCase().includes('BLOCK')) {
+      const reason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.safetyRatings?.[0]?.category || 'BLOCKED';
+      throw new Error(`安全フィルタによりブロックされました（${reason}）。語調や表現を少しやわらげて再試行してください。`);
+    }
+
+    // --- 新旧スキーマ対応でテキスト抽出 ---
     let text = "";
     try {
       // 旧: content.parts[].text
@@ -194,15 +210,24 @@
       }
       // 新: content[0].text
       if (!text && data?.candidates?.[0]?.content?.[0]?.text) {
-        text = data.candidates[0].content[0].text;
+        text = data.candidates[0].content[0].text || "";
       }
-      // さらに保険: output / text フィールド
+      // さらに保険
       if (!text && data?.candidates?.[0]?.output) text = data.candidates[0].output;
       if (!text && data?.candidates?.[0]?.text)   text = data.candidates[0].text;
     } catch(e) {
       console.warn("parse error:", e, data);
     }
-    return (text || "").trim();
+
+    // candidatesが空 or 未抽出
+    if (!text) {
+      if (!data?.candidates || data.candidates.length === 0) {
+        throw new Error("応答に候補が含まれていません（candidates[] が空）。少し待って再試行するか、v1betaに自動で切り替わるまでお待ちください。");
+      }
+      throw new Error("応答は成功しましたが本文を抽出できませんでした（レスポンス形式差異）。少し待って再試行してください。");
+    }
+
+    return text.trim();
   }
 
   // ========= 生成 =========
@@ -216,15 +241,10 @@
       if (!BASE || !MODEL) await initModel();
       const prompt = buildPrompt(lines, toneSel.value);
       const text = await callGemini(prompt);
-      if (text) {
-        out.textContent = text;
-        ok.style.display='block'; ok.textContent = "生成に成功しました。";
-      } else {
-        out.textContent = "（生成できませんでした）";
-        err.style.display='block'; err.textContent = "応答は成功しましたがテキストが空でした。別モデルに切り替えるか、文面を少し変えて再実行してください。";
-      }
+      out.textContent = text;
+      ok.style.display='block'; ok.textContent = "生成に成功しました。";
     }catch(e){
-      out.textContent = "生成に失敗しました。設定をご確認ください。";
+      out.textContent = "（生成できませんでした）";
       err.style.display='block'; err.textContent = String(e && e.message ? e.message : e);
       console.error(e);
     }

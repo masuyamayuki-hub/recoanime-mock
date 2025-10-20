@@ -48,7 +48,7 @@ button{padding:8px 14px;border-radius:8px;border:1px solid #ccc;cursor:pointer}
 
 <script>
 const API_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent";
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
 
 async function callGemini(prompt){
   const res = await fetch(`${GEMINI_URL}?key=${API_KEY}`, {

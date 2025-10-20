@@ -22,7 +22,7 @@
   button{appearance:none;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
   .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
   .hint{font-size:12px;color:var(--muted);margin-top:8px}
-  .error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;margin-top:10px;display:none;font-size:12px}
+  .error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;margin-top:10px;display:none;font-size:12px;white-space:pre-wrap}
   .ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:8px;padding:8px 10px;margin-top:10px;display:none;font-size:12px}
   .loader{display:inline-flex;align-items:center;gap:6px}
   .dot{width:6px;height:6px;border-radius:50%;background:#111;opacity:.6;animation:b 1s infinite alternate}
@@ -63,7 +63,7 @@
 
         <div id="ok" class="ok"></div>
         <div id="err" class="error"></div>
-        <p class="hint">公開運用時は APIキーの<a href="https://console.cloud.google.com/apis/credentials" target="_blank">HTTPリファラー制限</a>を必ず設定してください。</p>
+        <p class="hint">公開運用時は APIキーの<a href="https://console.cloud.google.com/apis/credentials" target="_blank">HTTPリファラー制限</a>を必ず設定してください。※本番はサーバ側で保管推奨</p>
       </div>
     </section>
 
@@ -71,7 +71,7 @@
     <section class="mail" aria-live="polite">
       <div class="mail-top">
         <span>生成結果（送信メール内容へ反映）</span>
-        <span class="small" id="engineState">Engine: Gemini v1 / gemini-1.5-flash</span>
+        <span class="small" id="engineState">Engine: Gemini v1 / gemini-pro</span>
       </div>
       <div class="mail-body">
         <div class="small">利用者ご家族様</div>
@@ -87,9 +87,11 @@
   </div>
 
 <script>
-  // ====== Gemini API（v1 固定名） ======
-  const API_KEY    = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
-  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
+  // ====== Gemini API（v1 固定名：gemini-pro） ======
+  // 本番ではこのキーはサーバ側で保管してください
+  const API_KEY    = "YOUR_API_KEY_HERE";
+  const MODEL_NAME = "gemini-pro"; // v1で確実に使えるモデル
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL_NAME}:generateContent`;
 
   // ====== DOM ======
   const $ = s => document.querySelector(s);
@@ -132,12 +134,23 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }]
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        // 念のため安全側の制限
+        generationConfig: {
+          maxOutputTokens: 256,
+          temperature: 0.7,
+        }
       })
     });
     if(!res.ok){
       const t = await res.text().catch(()=>String(res.status));
-      throw new Error(`Gemini API error: ${res.status} ${t}`);
+      // v1で1.5系を叩いたとき等の404にヒントを出す
+      let hint = "";
+      if (res.status === 404) {
+        hint = "\n\nヒント: v1では gemini-1.5-* は未対応です。最新モデルを使う場合は、" +
+               "ベースURLを v1beta に変更し、モデル名を gemini-1.5-flash 等にしてください。";
+      }
+      throw new Error(`Gemini API error: ${res.status}\n${t}${hint}`);
     }
     const data = await res.json();
     return data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('') || "";
@@ -157,7 +170,7 @@
       ok.style.display='block'; ok.textContent = "生成に成功しました。";
     }catch(e){
       out.textContent = "生成に失敗しました。設定をご確認ください。";
-      err.style.display='block'; err.textContent = e.message || String(e);
+      err.style.display='block'; err.textContent = String(e.message || e);
       console.error(e);
     }
   }

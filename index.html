@@ -8,7 +8,7 @@
 <style>
   :root{--line:#e5e7eb;--muted:#6b7280;--primary:#1e88e5;--mail:#00b894;--radius:14px}
   *{box-sizing:border-box}
-  body{margin:0;padding:24px;font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;background:#fff;line-height:1.6}
+  body{margin:0;padding:24px;font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;line-height:1.6}
   h1{margin:0 0 8px;font-size:22px;font-weight:700}
   .sub{color:var(--muted);margin:0 0 16px;font-size:12px}
   .grid{display:grid;gap:18px;max-width:1080px;margin:0 auto}
@@ -42,9 +42,7 @@
 </head>
 <body>
   <h1>ご家族さま向けお知らせ・生成モック（AI Studio無料枠 / 自動モデル検出）</h1>
-  <p class="sub">
-    <span class="pill" id="engineState">Engine: 検出中…</span>
-  </p>
+  <p class="sub"><span class="pill" id="engineState">Engine: 検出中…</span></p>
 
   <div class="grid">
     <!-- 左：入力 -->
@@ -74,11 +72,9 @@
       </div>
     </section>
 
-    <!-- 右：生成結果（メールイメージ） -->
+    <!-- 右：生成結果 -->
     <section class="mail" aria-live="polite">
-      <div class="mail-top">
-        <span>生成結果（送信メール内容へ反映）</span>
-      </div>
+      <div class="mail-top"><span>生成結果（送信メール内容へ反映）</span></div>
       <div class="mail-body">
         <div class="small">利用者ご家族様</div>
         <div class="small">こんにちは。<br>●●事業所の●●です。</div>
@@ -99,15 +95,9 @@
 
   // ====== DOM ======
   const $ = s => document.querySelector(s);
-  const bullets = $('#bullets');
-  const toneSel = $('#tone');
-  const out = $('#out');
-  const ok = $('#ok');
-  const err = $('#err');
-  const engineState = $('#engineState');
-  const debugBox = $('#debugBox');
-  const debugPre = $('#debugPre');
-
+  const bullets = $('#bullets'), toneSel = $('#tone'), out = $('#out');
+  const ok = $('#ok'), err = $('#err'), engineState = $('#engineState');
+  const debugBox = $('#debugBox'), debugPre = $('#debugPre');
   const originBox = $('#originBox');
   if (originBox) originBox.textContent = location.origin || "(file:// は不可。httpサーバで開いてください)";
 
@@ -117,19 +107,11 @@
   function persist(){ localStorage.setItem('mock.bullets', bullets.value); localStorage.setItem('mock.tone', toneSel.value); }
   bullets.addEventListener('input', persist);
   toneSel.addEventListener('change', persist);
-  $('#sample').addEventListener('click', ()=>{
-    bullets.value = ['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n');
-    persist();
-  });
+  $('#sample').addEventListener('click', ()=>{ bullets.value = ['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); persist(); });
 
   // ========= モデル自動検出 =========
-  const PreferredOrder = [
-    'gemini-2.5-flash','gemini-2.5-flash-lite',
-    'gemini-2.0-flash','gemini-2.0-flash-lite',
-    'gemini-1.5-flash'
-  ];
-  let BASE = null;  // v1 or v1beta
-  let MODEL = null; // e.g. gemini-2.0-flash
+  const PreferredOrder = ['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-flash'];
+  let BASE = null, MODEL = null;
 
   async function listModels(base){
     const res = await fetch(`${base}/models?key=${encodeURIComponent(API_KEY)}`);
@@ -139,21 +121,16 @@
   function pickModel(models){
     if (!models || !Array.isArray(models.models)) return null;
     const usable = models.models.filter(m => (m.supportedGenerationMethods||[]).includes('generateContent'));
-    for (const name of PreferredOrder){
-      const hit = usable.find(m => m.name.endsWith(name));
-      if (hit) return hit.name.split('/').pop();
-    }
+    for (const name of PreferredOrder){ const hit = usable.find(m => m.name.endsWith(name)); if (hit) return hit.name.split('/').pop(); }
     return usable[0]?.name.split('/').pop() || null;
   }
   async function initModel(){
     try{
       const j1 = await listModels('https://generativelanguage.googleapis.com/v1');
-      const m1 = pickModel(j1);
-      if (m1){ BASE='https://generativelanguage.googleapis.com/v1'; MODEL=m1; engineState.textContent=`Engine: v1 / ${MODEL}`; return; }
+      const m1 = pickModel(j1); if (m1){ BASE='https://generativelanguage.googleapis.com/v1'; MODEL=m1; engineState.textContent=`Engine: v1 / ${MODEL}`; return; }
     }catch(e){ console.warn(e); }
     const j2 = await listModels('https://generativelanguage.googleapis.com/v1beta');
-    const m2 = pickModel(j2);
-    if (m2){ BASE='https://generativelanguage.googleapis.com/v1beta'; MODEL=m2; engineState.textContent=`Engine: v1beta / ${MODEL}`; return; }
+    const m2 = pickModel(j2); if (m2){ BASE='https://generativelanguage.googleapis.com/v1beta'; MODEL=m2; engineState.textContent=`Engine: v1beta / ${MODEL}`; return; }
     throw new Error('利用可能なモデルが見つかりませんでした（APIキー/ドメイン制限をご確認ください）');
   }
 
@@ -171,62 +148,70 @@
     ].join("\\n");
   }
 
-  // ========= API呼び出し（安全フィルタ・新旧スキーマ対応） =========
+  // ========= API呼び出し（空返し対策） =========
   async function callGemini(prompt){
     const url = `${BASE}/models/${MODEL}:generateContent?key=${encodeURIComponent(API_KEY)}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 256, temperature: 0.7 }
-      })
-    });
+    const payload = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        maxOutputTokens: 256,
+        temperature: 0.7,
+        // ★ テキストで返すことを強制
+        responseMimeType: "text/plain"
+      },
+      // ★ 安全フィルタを緩める（通常の事務文面なので問題なし）
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT",          threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH",         threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",   threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT",   threshold: "BLOCK_NONE" }
+      ]
+    };
+
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const rawText = await res.text();
-    let data = null;
-    try { data = JSON.parse(rawText); } catch { /* noop */ }
+    let data = null; try{ data = JSON.parse(rawText); }catch{}
 
-    if(!res.ok){
-      throw new Error(`Gemini API error: ${res.status}\n${rawText}`);
+    if (!res.ok) throw new Error(`Gemini API error: ${res.status}\n${rawText}`);
+
+    // デバッグ表示（必要なら展開）
+    debugBox.style.display = 'block'; debugPre.textContent = rawText;
+
+    // 代表的なブロック・中断理由
+    const finish = (data?.candidates?.[0]?.finishReason || "").toUpperCase();
+    const blockR = (data?.promptFeedback?.blockReason || "").toUpperCase();
+    if (finish === "SAFETY" || finish === "CONTENT_FILTER" || blockR.includes("BLOCK")) {
+      const reason = blockR || finish || "BLOCKED";
+      throw new Error(`安全フィルタでブロック（${reason}）。語調を少しやわらげるか、箇条書きを修正して再実行してください。`);
     }
 
-    // デバッグ表示
-    debugBox.style.display = 'block';
-    debugPre.textContent = rawText;
-
-    // 安全フィードバックによるブロック検出
-    const block = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
-    if (block && String(block).toUpperCase().includes('BLOCK')) {
-      const reason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.safetyRatings?.[0]?.category || 'BLOCKED';
-      throw new Error(`安全フィルタによりブロックされました（${reason}）。語調や表現を少しやわらげて再試行してください。`);
-    }
-
-    // --- 新旧スキーマ対応でテキスト抽出 ---
+    // --- テキスト抽出（網羅） ---
+    const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
     let text = "";
-    try {
-      // 旧: content.parts[].text
-      if (data?.candidates?.[0]?.content?.parts) {
-        text = (data.candidates[0].content.parts || []).map(p => p.text || "").join("");
-      }
-      // 新: content[0].text
-      if (!text && data?.candidates?.[0]?.content?.[0]?.text) {
-        text = data.candidates[0].content[0].text || "";
-      }
-      // さらに保険
-      if (!text && data?.candidates?.[0]?.output) text = data.candidates[0].output;
-      if (!text && data?.candidates?.[0]?.text)   text = data.candidates[0].text;
-    } catch(e) {
-      console.warn("parse error:", e, data);
-    }
 
-    // candidatesが空 or 未抽出
+    // 1) 全候補を走査し、content.parts[].text を収集
+    for (const c of candidates) {
+      const parts = c?.content?.parts;
+      if (Array.isArray(parts)) {
+        const t = parts.map(p => p?.text || "").join("");
+        if (t) { text = t; break; }
+      }
+    }
+    // 2) content[0].text 形式
     if (!text) {
-      if (!data?.candidates || data.candidates.length === 0) {
-        throw new Error("応答に候補が含まれていません（candidates[] が空）。少し待って再試行するか、v1betaに自動で切り替わるまでお待ちください。");
+      for (const c of candidates) {
+        const maybe = c?.content?.[0]?.text || c?.text || c?.output;
+        if (maybe) { text = maybe; break; }
       }
-      throw new Error("応答は成功しましたが本文を抽出できませんでした（レスポンス形式差異）。少し待って再試行してください。");
+    }
+    // 3) ルートレベルのフィールド（SDK差異）
+    if (!text) {
+      text = data?.output_text || data?.generated_text || data?.text || "";
     }
 
+    if (!text) {
+      throw new Error("応答は成功しましたが本文を抽出できませんでした（形式差異）。数秒置いて再試行してください。");
+    }
     return text.trim();
   }
 
@@ -245,15 +230,13 @@
       ok.style.display='block'; ok.textContent = "生成に成功しました。";
     }catch(e){
       out.textContent = "（生成できませんでした）";
-      err.style.display='block'; err.textContent = String(e && e.message ? e.message : e);
+      err.style.display='block'; err.textContent = String(e?.message || e);
       console.error(e);
     }
   }
 
   $('#generate').addEventListener('click', generate);
-  bullets.addEventListener('keydown', e => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); generate(); }
-  });
+  bullets.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); generate(); } });
 
   if(!bullets.value) $('#sample').click();
   (async()=>{ try{ await initModel(); }catch(e){ console.warn('initModel warn:', e); }})();

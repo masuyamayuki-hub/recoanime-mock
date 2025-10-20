@@ -3,59 +3,39 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ご家族さま向けお知らせ・生成モック（WebLLM修正版）</title>
+<title>ご家族さま向けお知らせ・生成モック（軽量モデル版 0.5B）</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#ffffff; --line:#e5e7eb; --muted:#6b7280;
-    --primary:#1e88e5; --primary-weak:#e3f2fd; --accent:#0ea5e9;
-    --radius:14px; --mail-head:#00b894;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;padding:24px;background:var(--bg);font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;line-height:1.6}
+  :root{ --bg:#fff; --line:#e5e7eb; --muted:#6b7280; --primary:#1e88e5; --primary-weak:#e3f2fd; --accent:#0ea5e9; --mail:#00b894; --radius:14px; }
+  *{box-sizing:border-box} body{margin:0;padding:24px;background:var(--bg);font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;line-height:1.6}
   .wrap{max-width:1080px;margin:0 auto}
-  h1{margin:0 0 8px;font-size:22px;font-weight:700}
-  .sub{color:var(--muted);margin:0 0 16px;font-size:12px}
-  .grid{display:grid;gap:18px}
-  @media (min-width:1000px){.grid{grid-template-columns:1fr 1fr}}
+  h1{margin:0 0 8px;font-size:22px;font-weight:700} .sub{color:var(--muted);margin:0 0 16px;font-size:12px}
+  .grid{display:grid;gap:18px} @media (min-width:1000px){.grid{grid-template-columns:1fr 1fr}}
   .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 2px 10px rgba(0,0,0,.04)}
   .card .hd{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
   .pill{background:var(--primary-weak);color:var(--primary);font-weight:700;padding:3px 10px;border-radius:999px;font-size:12px}
-  .inner{padding:16px}
-  label{display:block;font-weight:700;margin:8px 0 6px}
+  .inner{padding:16px} label{display:block;font-weight:700;margin:8px 0 6px}
   textarea,input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:15px;background:#fff;outline:none}
-  textarea{min-height:140px;resize:vertical}
-  textarea:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(14,165,233,.12)}
-  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-  button{appearance:none;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
-  .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .btn-toggle{background:#fff}
-  .redbox{border:2px solid #ef4444;border-radius:12px;padding:12px}
-  .meta{font-size:12px;color:var(--muted)}
-
-  .mail{background:#fff;border:1px solid var(--line);border-radius:0}
-  .mail-top{background:var(--mail-head);color:#fff;padding:10px 14px;font-weight:700;font-size:20px;letter-spacing:.02em;display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .mail-body{padding:16px 18px}
-  .small{font-size:12px}
-  .greet{margin:2px 0 10px}
-  .genbox{border:2px solid #ef4444;border-radius:10px;padding:12px;min-height:96px;background:#fff;white-space:pre-wrap}
-  .bullet{display:flex;gap:6px;align-items:flex-start}
-  .bullet::before{content:"▼";font-weight:700;margin-top:0}
+  textarea{min-height:140px;resize:vertical} textarea:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(14,165,233,.12)}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px} button{appearance:none;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+  .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)} .btn-toggle{background:#fff}
+  .redbox{border:2px solid #ef4444;border-radius:12px;padding:12px} .meta{font-size:12px;color:var(--muted)}
+  .mail{background:#fff;border:1px solid var(--line)} .mail-top{background:var(--mail);color:#fff;padding:10px 14px;font-weight:700;font-size:20px;display:flex;justify-content:space-between}
+  .mail-body{padding:16px 18px} .small{font-size:12px} .greet{margin:2px 0 10px}
+  .genbox{border:2px solid #ef4444;border-radius:10px;padding:12px;min-height:96px;white-space:pre-wrap;background:#fff}
+  .bullet{display:flex;gap:6px;align-items:flex-start}.bullet::before{content:"▼";font-weight:700;margin-top:0}
   .qr-area{display:flex;gap:10px;align-items:center;margin:8px 0 0}
   .qr{width:44px;height:44px;background:conic-gradient(#000 25%,#fff 0 50%,#000 0 75%,#fff 0);mask:radial-gradient(circle at 50% 50%,rgba(0,0,0,.95) 26px, transparent 27px);border:2px solid #111;border-radius:6px}
   .hr{border:none;border-top:1px dashed #9ca3af;margin:14px 0}
   .engine{font-size:12px;color:#fff;opacity:.9}
-  .loader{display:inline-flex;align-items:center;gap:6px}
-  .dot{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.8;animation:b 1s infinite alternate}
-  .dot:nth-child(2){animation-delay:.2s}
-  .dot:nth-child(3){animation-delay:.4s}
-  @keyframes b { from{transform:translateY(0)} to{transform:translateY(-3px)} }
-  .error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px}
+  .loader{display:inline-flex;align-items:center;gap:6px}.dot{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.8;animation:b 1s infinite alternate}
+  .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}@keyframes b{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+  .error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;display:none}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>ご家族さま向けお知らせ・生成モック（WebLLM修正版）</h1>
+  <h1>ご家族さま向けお知らせ・生成モック（軽量モデル版 0.5B）</h1>
   <p class="sub">WebGPUでブラウザ内生成（API不要）。非対応端末は「簡易生成（擬似）」をご利用ください。</p>
 
   <div class="grid">
@@ -73,7 +53,7 @@
           <button id="fallback">簡易生成（擬似）</button>
           <button id="tone" class="btn-toggle" aria-pressed="true" title="丁寧⇄カジュアル切替">文体：丁寧</button>
         </div>
-        <p class="meta">※施設名や「●●」の記載は固定です。入力内容と文体設定はローカル保存されます。</p>
+        <p class="meta">※施設名や「●●」は固定。入力内容と文体設定はローカル保存されます。</p>
       </div>
     </section>
 
@@ -87,162 +67,120 @@
         <div class="small">利用者ご家族様</div>
         <div class="greet small">こんにちは。<br>●●事業所の●●です。</div>
         <div class="genbox" id="out">（左の赤枠に箇条書きを入力し、「生成AIでつくる」を押すとここに文章が入ります）</div>
-        <div id="err" class="error" style="display:none"></div>
+        <div id="err" class="error"></div>
         <p class="small" style="margin-top:10px">利用者様のバーセルインデックス（日常生活活動）の結果をアニメーション形式でお送りいたします。</p>
         <p class="bullet small">動画のご視聴はこちら</p>
-        <div class="qr-area">
-          <div class="qr" aria-hidden="true"></div>
-          <span class="small">▼QRコードをスマートフォン等で読み取ってください。</span>
-        </div>
+        <div class="qr-area"><div class="qr" aria-hidden="true"></div><span class="small">▼QRコードをスマートフォン等で読み取ってください。</span></div>
         <hr class="hr">
         <div class="small">
-          お問い合わせ先<br>
-          テスト事業所<br>
-          東京都テスト市 123-1 建物名<br>
-          TEL:1234567890<br>
-          MAIL:●●@njc.co.jp
+          お問い合わせ先<br>テスト事業所<br>東京都テスト市 123-1 建物名<br>TEL:1234567890<br>MAIL:●●@njc.co.jp
         </div>
       </div>
     </section>
   </div>
 </div>
 
-<!-- WebLLM CDN -->
+<!-- WebLLM -->
 <script src="https://unpkg.com/@mlc-ai/web-llm/dist/index.min.js"></script>
 <script>
   const $ = s => document.querySelector(s);
-  const bullets = $('#bullets');
-  const out = $('#out');
-  const toneBtn = $('#tone');
-  const engineState = $('#engineState');
-  const err = $('#err');
+  const bullets = $('#bullets'), out = $('#out'), toneBtn = $('#tone'), engineState = $('#engineState'), err = $('#err');
 
-  function showError(msg){
-    console.error('[WebLLM]', msg);
-    err.style.display = 'block';
-    err.textContent = msg;
-  }
-
-  // --- WebGPU対応チェック
+  // ---- WebGPU check
   if (!('gpu' in navigator)) {
     engineState.textContent = "Engine: WebGPU unsupported (use 簡易生成)";
-    document.addEventListener('DOMContentLoaded', ()=>{
-      out.textContent = 'この端末/ブラウザはWebGPU非対応のため、右の「簡易生成（擬似）」をご利用ください。Chrome/Edge(最新)でのご利用を推奨します。';
-      showError('WebGPU が使えない環境です。Chrome/Edgeの最新、または設定 flags を確認してください。');
-    });
+    out.textContent = 'この端末/ブラウザはWebGPU非対応です。「簡易生成（擬似）」をご利用ください。Chrome/Edge(最新)推奨。';
   }
 
-  // 文体状態
+  // ---- tone toggle
   let tone = localStorage.getItem('mock.tone') || 'polite';
-  function updateToneUI(){
-    const polite = tone === 'polite';
-    toneBtn.textContent = '文体：' + (polite ? '丁寧' : 'カジュアル');
-    toneBtn.setAttribute('aria-pressed', polite ? 'true' : 'false');
-  }
+  function updateToneUI(){ const polite = tone==='polite'; toneBtn.textContent = '文体：'+(polite?'丁寧':'カジュアル'); toneBtn.setAttribute('aria-pressed', polite?'true':'false'); }
   updateToneUI();
-  toneBtn.addEventListener('click', ()=>{
-    tone = (tone === 'polite') ? 'casual' : 'polite';
-    localStorage.setItem('mock.tone', tone);
-    updateToneUI();
-  });
+  toneBtn.addEventListener('click', ()=>{ tone = (tone==='polite')?'casual':'polite'; localStorage.setItem('mock.tone', tone); updateToneUI(); });
 
+  // ---- local save
+  bullets.value = localStorage.getItem('mock.bullets') || '';
   function save(){ localStorage.setItem('mock.bullets', bullets.value); }
-  function load(){ bullets.value = localStorage.getItem('mock.bullets') || ''; }
-  load();
 
-  // ====== WebLLM 初期化（確実に存在する軽量日本語対応モデル） ======
-  // 例: Qwen2.5-1.5B-Instruct (日本語も良好) または Phi-3-mini
-  const kModel = "Qwen2.5-1.5B-Instruct-q4f32_1-MLC";
+  // ---- VERY LIGHT model (約300〜400MB)
+  const kModel = "Llama-3.2-0.5B-Instruct-q4f32_1-MLC";
   let engine = null;
   async function ensureEngine(){
     if(engine) return engine;
     try{
       engineState.textContent = "Engine: loading…";
-      engine = await webllm.CreateMLCEngine(kModel, { temperature: 0.7, top_p: 0.95 });
-      engineState.textContent = "Engine: ready (" + kModel + ")";
+      engine = await webllm.CreateMLCEngine(kModel, {temperature:0.7, top_p:0.95});
+      engineState.textContent = "Engine: ready ("+kModel+")";
     }catch(e){
       engineState.textContent = "Engine: failed";
-      showError('モデル初期化に失敗しました: ' + (e && e.message ? e.message : e));
+      err.style.display = 'block';
+      err.textContent = "モデル初期化に失敗しました。簡易生成をご利用ください。詳細: " + (e && e.message ? e.message : e);
+      console.error(e);
       throw e;
     }
     return engine;
   }
 
-  // ====== 出力長さを200字前後に調整 ======
+  // ---- length fitter (200字前後)
   function fitLengthJa(text, min=160, max=220){
     const t = text.replace(/\s+/g,'').replace(/[\u3000]/g,'');
-    if (t.length <= max && t.length >= min) return t;
-    if (t.length > max){
-      const cut = t.slice(0, max);
-      const last = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('！'), cut.lastIndexOf('？'));
-      return (last > 80 ? cut.slice(0,last+1) : cut + '。');
-    }
+    if(t.length<=max && t.length>=min) return t;
+    if(t.length>max){ const cut=t.slice(0,max); const last=Math.max(cut.lastIndexOf('。'),cut.lastIndexOf('！'),cut.lastIndexOf('？')); return (last>80?cut.slice(0,last+1):cut+'。'); }
     return t;
   }
 
-  // ====== 簡易（擬似）生成：API不要 ======
+  // ---- pseudo generator
   function pseudoGenerate(text){
-    const items = text.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
-    if(!items.length){
-      return "（左の赤枠に箇条書きを入力し、「生成AIでつくる」を押してください）";
-    }
+    const items = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    if(!items.length) return "（左の赤枠に箇条書きを入力し、「生成AIでつくる」を押してください）";
     const hasSeason = items.find(s=>/(冷え|暑|寒|涼|暖か)/.test(s));
-    const greet = hasSeason ?
-      "最近は朝晩の空気もひんやりとしてまいりましたが、皆さまお変わりなくお過ごしでしょうか。" :
-      "いつも当事業所の運営にご理解ご協力を賜り、誠にありがとうございます。";
-    const dated = items.filter(s=>/^\\d{1,2}\\/\\d{1,2}/.test(s))
-      .map(s=>s.replace(/^(\\d{1,2})\\/(\\d{1,2}).*?(.*)$/,"$2日に$3を予定しております。")).join("");
-    const rest = items.filter(s=>!/^\\d{1,2}\\/\\d{1,2}/.test(s)).filter(s=>!/冷え|暑|寒|涼|暖か/.test(s)).join("。");
-    return [greet, dated, rest? rest+"。" : ""].join("");
+    const greet = hasSeason ? "最近は朝晩の空気もひんやりとしてまいりましたが、皆さまお変わりなくお過ごしでしょうか。" :
+                              "いつも当事業所の運営にご理解ご協力を賜り、誠にありがとうございます。";
+    const dated = items.filter(s=>/^\d{1,2}\/\d{1,2}/.test(s))
+      .map(s=>s.replace(/^(\d{1,2})\/(\d{1,2}).*?(.*)$/,"$2日に$3を予定しております。")).join("");
+    const rest = items.filter(s=>!(/^\d{1,2}\/\d{1,2}/.test(s)||/(冷え|暑|寒|涼|暖か)/.test(s))).join("。");
+    return [greet, dated, rest?rest+"。":""].join("");
   }
 
-  // ====== 生成（WebLLM） ======
+  // ---- generate with LLM
   async function runLLM(){
-    const lines = bullets.value.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+    const lines = bullets.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(!lines.length){ out.textContent = "（左の赤枠に箇条書きを入力してください）"; return; }
-    out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…（初回はモデル読込に時間がかかります）';
-    err.style.display = 'none'; err.textContent='';
+    out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…（初回はモデル読込あり）';
+    err.style.display='none'; err.textContent='';
     try{
       await ensureEngine();
-      const style = (tone === 'polite') ? '丁寧な敬体（です・ます）' : 'やわらかいカジュアル体';
+      const style = (tone==='polite')?'丁寧な敬体（です・ます）':'やわらかいカジュアル体';
       const prompt = [
         "あなたは介護事業所の職員として、ご家族向けのお知らせ文を作成します。",
         "与えられた箇条書きの事実をもとに、200文字前後で日本語の短い段落を1つ作ってください。",
-        "文体:", style + "。",
-        "条件: 1) 誇張しない 2) 日付は「○日に〜を予定しています」と自然に言い換える 3) 季節の一言があれば冒頭に 4) 結びは簡潔に。",
-        "箇条書き:",
-        lines.map(l => "- " + l).join("\\n"),
+        "文体:", style+"。",
+        "条件: 1) 誇張しない 2) 日付は「○日に〜を予定しています」と言い換える 3) 季節の一言があれば冒頭に 4) 結びは簡潔に。",
+        "箇条書き:", lines.map(l=>"- "+l).join("\n"),
         "出力は本文のみ。"
-      ].join("\\n");
+      ].join("\n");
 
       const reply = await engine.chat.completions.create({
-        messages: [{role:"user", content: prompt}],
-        stream: false,
-        temperature: 0.7,
-        max_tokens: 220
+        messages:[{role:"user",content:prompt}],
+        stream:false, temperature:0.7, max_tokens:220
       });
       let text = (reply.choices?.[0]?.message?.content || "").trim();
-      text = fitLengthJa(text,160,220);
-      out.textContent = text || "（生成できませんでした）";
+      out.textContent = text ? fitLengthJa(text,160,220) : "（生成できませんでした）";
     }catch(e){
-      showError('生成に失敗しました。右の「簡易生成（擬似）」をご利用ください。詳細: ' + (e && e.message ? e.message : e));
-      out.textContent = "生成に失敗しました。簡易生成をご利用ください。";
+      out.textContent = "生成に失敗しました。右の「簡易生成（擬似）」をご利用ください。";
+      err.style.display='block'; err.textContent = "詳細: "+(e && e.message?e.message:e);
+      console.error(e);
     }
-    localStorage.setItem('mock.bullets', bullets.value);
+    save();
   }
 
-  // イベント
+  // ---- events
   document.getElementById('generate').addEventListener('click', runLLM);
-  document.getElementById('fallback').addEventListener('click', ()=>{
-    out.textContent = fitLengthJa(pseudoGenerate(bullets.value),160,220);
-    localStorage.setItem('mock.bullets', bullets.value);
-  });
-  document.getElementById('sample').addEventListener('click', ()=>{
-    bullets.value = ['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\\n');
-  });
+  document.getElementById('fallback').addEventListener('click', ()=>{ out.textContent = fitLengthJa(pseudoGenerate(bullets.value),160,220); save(); });
+  document.getElementById('sample').addEventListener('click', ()=>{ bullets.value=['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); });
 
-  // 初期案内
-  if(!bullets.value){ document.getElementById('sample').click(); }
+  // 初期値
+  if(!bullets.value) document.getElementById('sample').click();
 </script>
 </body>
 </html>

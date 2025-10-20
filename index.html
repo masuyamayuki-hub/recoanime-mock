@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ご家族さま向けお知らせ・生成モック（WebLLM改良版）</title>
+<title>ご家族さま向けお知らせ・生成モック（WebLLM修正版）</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -50,12 +50,13 @@
   .dot:nth-child(2){animation-delay:.2s}
   .dot:nth-child(3){animation-delay:.4s}
   @keyframes b { from{transform:translateY(0)} to{transform:translateY(-3px)} }
+  .error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>ご家族さま向けお知らせ・生成モック（WebLLM改良版）</h1>
-  <p class="sub">WebGPUでブラウザ内生成。APIキー不要。非対応端末は「簡易生成（擬似）」で動作します。</p>
+  <h1>ご家族さま向けお知らせ・生成モック（WebLLM修正版）</h1>
+  <p class="sub">WebGPUでブラウザ内生成（API不要）。非対応端末は「簡易生成（擬似）」をご利用ください。</p>
 
   <div class="grid">
     <!-- 左：入力 -->
@@ -86,6 +87,7 @@
         <div class="small">利用者ご家族様</div>
         <div class="greet small">こんにちは。<br>●●事業所の●●です。</div>
         <div class="genbox" id="out">（左の赤枠に箇条書きを入力し、「生成AIでつくる」を押すとここに文章が入ります）</div>
+        <div id="err" class="error" style="display:none"></div>
         <p class="small" style="margin-top:10px">利用者様のバーセルインデックス（日常生活活動）の結果をアニメーション形式でお送りいたします。</p>
         <p class="bullet small">動画のご視聴はこちら</p>
         <div class="qr-area">
@@ -113,12 +115,20 @@
   const out = $('#out');
   const toneBtn = $('#tone');
   const engineState = $('#engineState');
+  const err = $('#err');
+
+  function showError(msg){
+    console.error('[WebLLM]', msg);
+    err.style.display = 'block';
+    err.textContent = msg;
+  }
 
   // --- WebGPU対応チェック
   if (!('gpu' in navigator)) {
     engineState.textContent = "Engine: WebGPU unsupported (use 簡易生成)";
     document.addEventListener('DOMContentLoaded', ()=>{
       out.textContent = 'この端末/ブラウザはWebGPU非対応のため、右の「簡易生成（擬似）」をご利用ください。Chrome/Edge(最新)でのご利用を推奨します。';
+      showError('WebGPU が使えない環境です。Chrome/Edgeの最新、または設定 flags を確認してください。');
     });
   }
 
@@ -140,8 +150,9 @@
   function load(){ bullets.value = localStorage.getItem('mock.bullets') || ''; }
   load();
 
-  // ====== WebLLM 初期化 ======
-  const kModel = "Llama-3.2-3B-Instruct-q4f32_1-MLC"; // 3B版（品質↑ 初回DLは重め）
+  // ====== WebLLM 初期化（確実に存在する軽量日本語対応モデル） ======
+  // 例: Qwen2.5-1.5B-Instruct (日本語も良好) または Phi-3-mini
+  const kModel = "Qwen2.5-1.5B-Instruct-q4f32_1-MLC";
   let engine = null;
   async function ensureEngine(){
     if(engine) return engine;
@@ -150,7 +161,8 @@
       engine = await webllm.CreateMLCEngine(kModel, { temperature: 0.7, top_p: 0.95 });
       engineState.textContent = "Engine: ready (" + kModel + ")";
     }catch(e){
-      engineState.textContent = "Engine: failed (" + e.message + ")";
+      engineState.textContent = "Engine: failed";
+      showError('モデル初期化に失敗しました: ' + (e && e.message ? e.message : e));
       throw e;
     }
     return engine;
@@ -189,6 +201,7 @@
     const lines = bullets.value.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
     if(!lines.length){ out.textContent = "（左の赤枠に箇条書きを入力してください）"; return; }
     out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…（初回はモデル読込に時間がかかります）';
+    err.style.display = 'none'; err.textContent='';
     try{
       await ensureEngine();
       const style = (tone === 'polite') ? '丁寧な敬体（です・ます）' : 'やわらかいカジュアル体';
@@ -212,7 +225,8 @@
       text = fitLengthJa(text,160,220);
       out.textContent = text || "（生成できませんでした）";
     }catch(e){
-      out.textContent = "生成に失敗しました。右の「簡易生成（擬似）」をご利用ください。 (" + e.message + ")";
+      showError('生成に失敗しました。右の「簡易生成（擬似）」をご利用ください。詳細: ' + (e && e.message ? e.message : e));
+      out.textContent = "生成に失敗しました。簡易生成をご利用ください。";
     }
     localStorage.setItem('mock.bullets', bullets.value);
   }

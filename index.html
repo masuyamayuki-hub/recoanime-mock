@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ご家族さま向けお知らせ・生成モック（AI Studio無料枠 / 自動モデル検出）</title>
+<title>ご家族さま向けお知らせ・生成モック（Gemini API v1beta）</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{--line:#e5e7eb;--muted:#6b7280;--primary:#1e88e5;--mail:#00b894;--radius:14px}
   *{box-sizing:border-box}
-  body{margin:0;padding:24px;font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;line-height:1.6}
+  body{margin:0;padding:24px;font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;background:#fff;line-height:1.6}
   h1{margin:0 0 8px;font-size:22px;font-weight:700}
   .sub{color:var(--muted);margin:0 0 16px;font-size:12px}
   .grid{display:grid;gap:18px;max-width:1080px;margin:0 auto}
@@ -16,7 +16,15 @@
   .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius)}
   .inner{padding:16px}
   .hd{padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700}
-  textarea{width:100%;min-height:160px;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:15px;resize:vertical}
+  textarea{
+    width:100%;
+    min-height:240px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px;
+    font-size:16px;
+    resize:vertical;
+  }
   .row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
   select,button{font-size:14px}
   button{appearance:none;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
@@ -32,17 +40,21 @@
   .mail-top{background:var(--mail);color:#fff;padding:10px 14px;font-weight:700;font-size:18px;display:flex;justify-content:space-between;align-items:center}
   .mail-body{padding:16px 18px}
   .small{font-size:12px;color:#374151}
-  .genbox{border:2px solid #ef4444;border-radius:10px;padding:12px;min-height:110px;white-space:pre-wrap;background:#fff}
+  .genbox{
+    border:2px solid #ef4444;
+    border-radius:10px;
+    padding:12px;
+    min-height:140px;
+    white-space:pre-line; /* 改行を表示 */
+    background:#fff;
+    font-size:15px;
+  }
   .hr{border:none;border-top:1px dashed #9ca3af;margin:14px 0}
-  .pill{display:inline-block;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px;padding:2px 8px;font-size:11px;color:#3730a3}
-  details{margin-top:8px}
-  summary{cursor:pointer;font-size:12px;color:#4b5563}
-  pre{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px;overflow:auto;font-size:12px}
 </style>
 </head>
 <body>
-  <h1>ご家族さま向けお知らせ・生成モック（AI Studio無料枠 / 自動モデル検出）</h1>
-  <p class="sub"><span class="pill" id="engineState">Engine: 検出中…</span></p>
+  <h1>ご家族さま向けお知らせ・生成モック（Gemini API v1beta）</h1>
+  <p class="sub">Google Gemini API（v1beta）で右側の文章を自動生成します。200字前後。WebGPU不要。</p>
 
   <div class="grid">
     <!-- 左：入力 -->
@@ -67,14 +79,16 @@
 
         <div id="ok" class="ok"></div>
         <div id="err" class="error"></div>
-        <p class="hint">ドメイン制限を使う場合は <code id="originBox"></code> を AI Studio の Allowed domains / HTTPリファラー制限に登録してください。</p>
-        <details id="debugBox" style="display:none"><summary>デバッグ（API生レスポンス）</summary><pre id="debugPre"></pre></details>
+        <p class="hint">※無料枠利用時はAI Studioの「Allowed domains」に <b>https://masuyamayuki-hub.github.io</b> を登録してください。</p>
       </div>
     </section>
 
     <!-- 右：生成結果 -->
     <section class="mail" aria-live="polite">
-      <div class="mail-top"><span>生成結果（送信メール内容へ反映）</span></div>
+      <div class="mail-top">
+        <span>生成結果（送信メール内容へ反映）</span>
+        <span class="small" id="engineState">Engine: Gemini v1beta / gemini-1.5-flash</span>
+      </div>
       <div class="mail-body">
         <div class="small">利用者ご家族様</div>
         <div class="small">こんにちは。<br>●●事業所の●●です。</div>
@@ -89,51 +103,33 @@
   </div>
 
 <script>
-  // ====== AI Studio APIキー（ご指定の値） ======
-  const RAW_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
-  const API_KEY = RAW_KEY.trim();
+  // ====== Gemini API (v1beta) ======
+  const API_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
+  const MODEL = "gemini-1.5-flash";
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
   // ====== DOM ======
   const $ = s => document.querySelector(s);
-  const bullets = $('#bullets'), toneSel = $('#tone'), out = $('#out');
-  const ok = $('#ok'), err = $('#err'), engineState = $('#engineState');
-  const debugBox = $('#debugBox'), debugPre = $('#debugPre');
-  const originBox = $('#originBox');
-  if (originBox) originBox.textContent = location.origin || "(file:// は不可。httpサーバで開いてください)";
+  const bullets = $('#bullets');
+  const toneSel = $('#tone');
+  const out = $('#out');
+  const ok = $('#ok');
+  const err = $('#err');
 
-  // ====== 永続化 & サンプル ======
+  // 保存/復元
   bullets.value = localStorage.getItem('mock.bullets') || '';
   toneSel.value = localStorage.getItem('mock.tone') || 'polite';
-  function persist(){ localStorage.setItem('mock.bullets', bullets.value); localStorage.setItem('mock.tone', toneSel.value); }
+  const persist = ()=>{ localStorage.setItem('mock.bullets', bullets.value); localStorage.setItem('mock.tone', toneSel.value); };
   bullets.addEventListener('input', persist);
   toneSel.addEventListener('change', persist);
-  $('#sample').addEventListener('click', ()=>{ bullets.value = ['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); persist(); });
 
-  // ========= モデル自動検出 =========
-  const PreferredOrder = ['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-flash'];
-  let BASE = null, MODEL = null, ALL_MODELS = [];
+  // サンプル
+  $('#sample').addEventListener('click', ()=>{
+    bullets.value = ['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n');
+    persist();
+  });
 
-  async function listModels(base){
-    const res = await fetch(`${base}/models?key=${encodeURIComponent(API_KEY)}`);
-    if (!res.ok) throw new Error(`${base} ListModels failed: ${res.status}\n${await res.text()}`);
-    const j = await res.json();
-    return (j.models || []).filter(m => (m.supportedGenerationMethods||[]).includes('generateContent')).map(m => m.name.split('/').pop());
-  }
-  function pickPreferred(names){
-    for (const want of PreferredOrder){ if (names.includes(want)) return want; }
-    return names[0] || null;
-  }
-  async function initModel(){
-    try{
-      const v1 = await listModels('https://generativelanguage.googleapis.com/v1');
-      if (v1.length){ BASE='https://generativelanguage.googleapis.com/v1'; ALL_MODELS = v1; MODEL = pickPreferred(v1); engineState.textContent=`Engine: v1 / ${MODEL}`; return; }
-    }catch(e){ console.warn('v1 list error', e); }
-    const v1b = await listModels('https://generativelanguage.googleapis.com/v1beta');
-    if (v1b.length){ BASE='https://generativelanguage.googleapis.com/v1beta'; ALL_MODELS = v1b; MODEL = pickPreferred(v1b); engineState.textContent=`Engine: v1beta / ${MODEL}`; return; }
-    throw new Error('利用可能なモデルが見つかりませんでした（APIキー/ドメイン制限をご確認ください）');
-  }
-
-  // ========= プロンプト =========
+  // プロンプト作成
   function buildPrompt(lines, tone){
     const style = (tone === 'polite') ? '丁寧な敬体（です・ます）' : 'やわらかいカジュアル体';
     return [
@@ -147,72 +143,28 @@
     ].join("\\n");
   }
 
-  // ========= 共通: テキスト抽出 =========
-  function extractText(data){
-    const cands = Array.isArray(data?.candidates) ? data.candidates : [];
-    for (const c of cands){
-      if (Array.isArray(c?.content?.parts)){
-        const t = c.content.parts.map(p => p?.text || "").join("");
-        if (t) return t.trim();
-      }
-    }
-    for (const c of cands){
-      const t = c?.content?.[0]?.text || c?.text || c?.output;
-      if (t) return String(t).trim();
-    }
-    const t3 = data?.output_text || data?.generated_text || data?.text;
-    if (t3) return String(t3).trim();
-    return "";
-  }
-
-  // ========= 呼び出し（フォールバック付き） =========
-  async function callOnce(base, model, prompt){
-    const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(API_KEY)}`;
-    const payload = {
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 256, temperature: 0.7 }
-      // ※ responseMimeType は未対応環境があるため指定しない
-      // ※ safetySettings も互換優先で外す
-    };
-    const res = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
-    const raw = await res.text();
-    let data = null; try{ data = JSON.parse(raw); }catch{}
-    if (!res.ok) throw new Error(`Gemini API error: ${res.status}\n${raw}`);
-    document.getElementById('debugBox').style.display = 'block';
-    document.getElementById('debugPre').textContent = raw;
-    return extractText(data);
-  }
-
+  // API呼び出し
   async function callGemini(prompt){
-    // 1) 現在のモデル
-    let t = await callOnce(BASE, MODEL, prompt);
-    if (t) return t;
-
-    // 2) 同じBASEで他モデル
-    for (const m of ALL_MODELS){
-      if (m === MODEL) continue;
-      try{
-        t = await callOnce(BASE, m, prompt);
-        if (t){ MODEL = m; engineState.textContent = `${BASE.endsWith('/v1') ? 'Engine: v1' : 'Engine: v1beta'} / ${MODEL} (switched)`; return t; }
-      }catch(e){ console.warn('alt model fail', m, e); }
+    const res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: 256,
+          temperature: 0.7
+        }
+      })
+    });
+    if(!res.ok){
+      const t = await res.text();
+      throw new Error(`Gemini API error: ${res.status}\n${t}`);
     }
-
-    // 3) BASE切替
-    const otherBase = BASE.endsWith('/v1') ? 'https://generativelanguage.googleapis.com/v1beta' : 'https://generativelanguage.googleapis.com/v1';
-    try{
-      const names = await listModels(otherBase);
-      for (const m of names){
-        try{
-          t = await callOnce(otherBase, m, prompt);
-          if (t){ BASE = otherBase; MODEL = m; engineState.textContent = `${BASE.endsWith('/v1') ? 'Engine: v1' : 'Engine: v1beta'} / ${MODEL} (fallback)`; return t; }
-        }catch(e){ console.warn('base switch fail', otherBase, m, e); }
-      }
-    }catch(e){ console.warn('list other base fail', e); }
-
-    throw new Error("応答は返りましたが本文を抽出できませんでした。数秒置いて再試行してください。");
+    const data = await res.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
   }
 
-  // ========= 生成 =========
+  // 生成
   async function generate(){
     err.style.display='none'; ok.style.display='none';
     const lines = (bullets.value||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -220,31 +172,25 @@
 
     out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…';
     try{
-      if (!BASE || !MODEL) await initModel();
       const prompt = buildPrompt(lines, toneSel.value);
-      const text = await callGemini(prompt);
-      
-// 改行整形（「。」のあとに改行を追加）
-const formatted = text
-  .replace(/。(?=[^\n])/g, '。\n')     // 「。」のあとに改行
-  .replace(/\n{2,}/g, '\n');          // 連続改行を1つに圧縮
+      const text = (await callGemini(prompt)).trim();
 
-out.textContent = formatted;
+      // 「。」や「！」の後で改行
+      const formatted = text
+        .replace(/。(?!(\n|$))/g, '。\n')
+        .replace(/[!?！？](?!(\n|$))/g, m => m + '\n')
+        .replace(/\n{3,}/g, '\n\n');
+
+      out.textContent = formatted || "（生成できませんでした）";
       ok.style.display='block'; ok.textContent = "生成に成功しました。";
     }catch(e){
-      out.textContent = "（生成できませんでした）";
-      err.style.display='block'; err.textContent = String(e?.message || e);
-      console.error(e);
+      out.textContent = "生成に失敗しました。";
+      err.style.display='block'; err.textContent = String(e.message || e);
     }
   }
+  $('#generate').addEventListener('click', generate);
 
-  // イベント
-  document.getElementById('generate').addEventListener('click', generate);
-  bullets.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); generate(); } });
-
-  // 初期化
-  if(!bullets.value) document.getElementById('sample').click();
-  (async()=>{ try{ await initModel(); }catch(e){ console.warn('initModel warn:', e); }})();
+  if(!bullets.value) $('#sample').click();
 </script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ご家族さま向けお知らせ・生成モック（軽量モデル版 0.5B）</title>
+<title>ご家族さま向けお知らせ・生成モック（超軽量・進捗表示付き）</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{ --bg:#fff; --line:#e5e7eb; --muted:#6b7280; --primary:#1e88e5; --primary-weak:#e3f2fd; --accent:#0ea5e9; --mail:#00b894; --radius:14px; }
@@ -35,11 +35,10 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>ご家族さま向けお知らせ・生成モック（軽量モデル版 0.5B）</h1>
-  <p class="sub">WebGPUでブラウザ内生成（API不要）。非対応端末は「簡易生成（擬似）」をご利用ください。</p>
+  <h1>ご家族さま向けお知らせ・生成モック（超軽量・進捗表示付き）</h1>
+  <p class="sub">WebGPUでブラウザ内生成（API不要）。進捗表示・タイムアウト自動フォールバックあり。</p>
 
   <div class="grid">
-    <!-- 左：入力 -->
     <section class="card">
       <div class="hd"><strong>入力（箇条書き）</strong><span class="pill">左の赤枠</span></div>
       <div class="inner">
@@ -49,6 +48,7 @@
         </div>
         <div class="btns">
           <button id="sample">サンプル</button>
+          <button id="prewarm">エンジン事前読み込み</button>
           <button id="generate" class="btn-primary">生成AIでつくる</button>
           <button id="fallback">簡易生成（擬似）</button>
           <button id="tone" class="btn-toggle" aria-pressed="true" title="丁寧⇄カジュアル切替">文体：丁寧</button>
@@ -57,7 +57,6 @@
       </div>
     </section>
 
-    <!-- 右：生成結果 -->
     <section class="mail" aria-live="polite">
       <div class="mail-top">
         <span>生成結果（送信メール内容へ反映）</span>
@@ -72,46 +71,56 @@
         <p class="bullet small">動画のご視聴はこちら</p>
         <div class="qr-area"><div class="qr" aria-hidden="true"></div><span class="small">▼QRコードをスマートフォン等で読み取ってください。</span></div>
         <hr class="hr">
-        <div class="small">
-          お問い合わせ先<br>テスト事業所<br>東京都テスト市 123-1 建物名<br>TEL:1234567890<br>MAIL:●●@njc.co.jp
-        </div>
+        <div class="small">お問い合わせ先<br>テスト事業所<br>東京都テスト市 123-1 建物名<br>TEL:1234567890<br>MAIL:●●@njc.co.jp</div>
       </div>
     </section>
   </div>
 </div>
 
-<!-- WebLLM -->
 <script src="https://unpkg.com/@mlc-ai/web-llm/dist/index.min.js"></script>
 <script>
   const $ = s => document.querySelector(s);
   const bullets = $('#bullets'), out = $('#out'), toneBtn = $('#tone'), engineState = $('#engineState'), err = $('#err');
 
-  // ---- WebGPU check
   if (!('gpu' in navigator)) {
     engineState.textContent = "Engine: WebGPU unsupported (use 簡易生成)";
     out.textContent = 'この端末/ブラウザはWebGPU非対応です。「簡易生成（擬似）」をご利用ください。Chrome/Edge(最新)推奨。';
   }
 
-  // ---- tone toggle
   let tone = localStorage.getItem('mock.tone') || 'polite';
   function updateToneUI(){ const polite = tone==='polite'; toneBtn.textContent = '文体：'+(polite?'丁寧':'カジュアル'); toneBtn.setAttribute('aria-pressed', polite?'true':'false'); }
   updateToneUI();
   toneBtn.addEventListener('click', ()=>{ tone = (tone==='polite')?'casual':'polite'; localStorage.setItem('mock.tone', tone); updateToneUI(); });
 
-  // ---- local save
   bullets.value = localStorage.getItem('mock.bullets') || '';
   function save(){ localStorage.setItem('mock.bullets', bullets.value); }
 
-  // ---- VERY LIGHT model (約300〜400MB)
-  const kModel = "Llama-3.2-0.5B-Instruct-q4f32_1-MLC";
+  const kModel = "Phi-3-mini-4k-instruct-q4f32_1-MLC";
   let engine = null;
+  let loading = false;
+
+  function onProgress(report){
+    if(report && typeof report.progress === 'number'){
+      const p = Math.floor(report.progress * 100);
+      engineState.textContent = `Engine: downloading… ${p}%`;
+    }else if(report && report.text){
+      engineState.textContent = `Engine: ${report.text}`;
+    }
+  }
+
   async function ensureEngine(){
     if(engine) return engine;
+    if(loading) return new Promise((res,rej)=>{
+      const iv = setInterval(()=>{ if(engine){ clearInterval(iv); res(engine); } }, 500);
+      setTimeout(()=>{ clearInterval(iv); rej(new Error('timeout')); }, 90000);
+    });
     try{
+      loading = true;
       engineState.textContent = "Engine: loading…";
-      engine = await webllm.CreateMLCEngine(kModel, {temperature:0.7, top_p:0.95});
+      engine = await webllm.CreateMLCEngine(kModel, { temperature:0.7, top_p:0.95, initProgressCallback:onProgress });
       engineState.textContent = "Engine: ready ("+kModel+")";
     }catch(e){
+      loading = false;
       engineState.textContent = "Engine: failed";
       err.style.display = 'block';
       err.textContent = "モデル初期化に失敗しました。簡易生成をご利用ください。詳細: " + (e && e.message ? e.message : e);
@@ -121,7 +130,6 @@
     return engine;
   }
 
-  // ---- length fitter (200字前後)
   function fitLengthJa(text, min=160, max=220){
     const t = text.replace(/\s+/g,'').replace(/[\u3000]/g,'');
     if(t.length<=max && t.length>=min) return t;
@@ -129,27 +137,27 @@
     return t;
   }
 
-  // ---- pseudo generator
   function pseudoGenerate(text){
     const items = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(!items.length) return "（左の赤枠に箇条書きを入力し、「生成AIでつくる」を押してください）";
     const hasSeason = items.find(s=>/(冷え|暑|寒|涼|暖か)/.test(s));
     const greet = hasSeason ? "最近は朝晩の空気もひんやりとしてまいりましたが、皆さまお変わりなくお過ごしでしょうか。" :
                               "いつも当事業所の運営にご理解ご協力を賜り、誠にありがとうございます。";
-    const dated = items.filter(s=>/^\d{1,2}\/\d{1,2}/.test(s))
-      .map(s=>s.replace(/^(\d{1,2})\/(\d{1,2}).*?(.*)$/,"$2日に$3を予定しております。")).join("");
+    const dated = items.filter(s=>/^\d{1,2}\/\d{1,2}/.test(s)).map(s=>s.replace(/^(\d{1,2})\/(\d{1,2}).*?(.*)$/,"$2日に$3を予定しております。")).join("");
     const rest = items.filter(s=>!(/^\d{1,2}\/\d{1,2}/.test(s)||/(冷え|暑|寒|涼|暖か)/.test(s))).join("。");
     return [greet, dated, rest?rest+"。":""].join("");
   }
 
-  // ---- generate with LLM
   async function runLLM(){
     const lines = bullets.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(!lines.length){ out.textContent = "（左の赤枠に箇条書きを入力してください）"; return; }
     out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…（初回はモデル読込あり）';
     err.style.display='none'; err.textContent='';
+
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('engine-timeout')), 90000));
+
     try{
-      await ensureEngine();
+      await Promise.race([ensureEngine(), timeout]);
       const style = (tone==='polite')?'丁寧な敬体（です・ます）':'やわらかいカジュアル体';
       const prompt = [
         "あなたは介護事業所の職員として、ご家族向けのお知らせ文を作成します。",
@@ -161,25 +169,27 @@
       ].join("\n");
 
       const reply = await engine.chat.completions.create({
-        messages:[{role:"user",content:prompt}],
-        stream:false, temperature:0.7, max_tokens:220
+        messages:[{role:"user",content:prompt}], stream:false, temperature:0.7, max_tokens:220
       });
       let text = (reply.choices?.[0]?.message?.content || "").trim();
       out.textContent = text ? fitLengthJa(text,160,220) : "（生成できませんでした）";
     }catch(e){
-      out.textContent = "生成に失敗しました。右の「簡易生成（擬似）」をご利用ください。";
-      err.style.display='block'; err.textContent = "詳細: "+(e && e.message?e.message:e);
-      console.error(e);
+      if(e && e.message === 'engine-timeout'){
+        out.textContent = fitLengthJa(pseudoGenerate(bullets.value),160,220);
+        err.style.display='block'; err.textContent = "エンジンの準備が90秒以内に完了しなかったため、簡易生成で出力しました。";
+      }else{
+        out.textContent = "生成に失敗しました。右の「簡易生成（擬似）」をご利用ください。";
+        err.style.display='block'; err.textContent = "詳細: "+(e && e.message?e.message:e);
+        console.error(e);
+      }
     }
     save();
   }
 
-  // ---- events
+  document.getElementById('prewarm').addEventListener('click', ()=>{ ensureEngine().catch(()=>{}); });
   document.getElementById('generate').addEventListener('click', runLLM);
   document.getElementById('fallback').addEventListener('click', ()=>{ out.textContent = fitLengthJa(pseudoGenerate(bullets.value),160,220); save(); });
   document.getElementById('sample').addEventListener('click', ()=>{ bullets.value=['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); });
-
-  // 初期値
   if(!bullets.value) document.getElementById('sample').click();
 </script>
 </body>

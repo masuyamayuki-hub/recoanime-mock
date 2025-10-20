@@ -223,13 +223,13 @@
       if (!BASE || !MODEL) await initModel();
       const prompt = buildPrompt(lines, toneSel.value);
       const text = await callGemini(prompt);
-      // 改行整形（「。」のあとに改行を追加）
-　　const formatted = text
+      
+// 改行整形（「。」のあとに改行を追加）
+const formatted = text
   .replace(/。(?=[^\n])/g, '。\n')     // 「。」のあとに改行
   .replace(/\n{2,}/g, '\n');          // 連続改行を1つに圧縮
 
-　　　　out.textContent = formatted;
-      out.textContent = text;
+out.textContent = formatted;
       ok.style.display='block'; ok.textContent = "生成に成功しました。";
     }catch(e){
       out.textContent = "（生成できませんでした）";

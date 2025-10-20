@@ -149,71 +149,73 @@
   }
 
   // ========= API呼び出し（空返し対策） =========
-  async function callGemini(prompt){
-    const url = `${BASE}/models/${MODEL}:generateContent?key=${encodeURIComponent(API_KEY)}`;
+ // ========= API呼び出し（空返し対策つきリトライ） =========
+async function callGemini(prompt){
+  async function tryCall(base, model, opts = {}) {
+    const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(API_KEY)}`;
     const payload = {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens: 256,
-        temperature: 0.7,
-        // ★ テキストで返すことを強制
-        responseMimeType: "text/plain"
-      },
-      // ★ 安全フィルタを緩める（通常の事務文面なので問題なし）
-      safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT",          threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH",         threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",   threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT",   threshold: "BLOCK_NONE" }
-      ]
+      generationConfig: Object.assign(
+        { maxOutputTokens: 256, temperature: 0.7 },
+        opts.responseMimeType ? { responseMimeType: opts.responseMimeType } : {}
+      ),
+      ...(opts.addSafety
+        ? { safetySettings: [
+              { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_HATE_SPEECH",       threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+            ] }
+        : {})
     };
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const raw = await res.text();
+    let data = null; try { data = JSON.parse(raw); } catch {}
+    if (!res.ok) throw new Error(`Gemini API error: ${res.status}\n${raw}`);
 
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const rawText = await res.text();
-    let data = null; try{ data = JSON.parse(rawText); }catch{}
-
-    if (!res.ok) throw new Error(`Gemini API error: ${res.status}\n${rawText}`);
-
-    // デバッグ表示（必要なら展開）
-    debugBox.style.display = 'block'; debugPre.textContent = rawText;
-
-    // 代表的なブロック・中断理由
-    const finish = (data?.candidates?.[0]?.finishReason || "").toUpperCase();
-    const blockR = (data?.promptFeedback?.blockReason || "").toUpperCase();
-    if (finish === "SAFETY" || finish === "CONTENT_FILTER" || blockR.includes("BLOCK")) {
-      const reason = blockR || finish || "BLOCKED";
-      throw new Error(`安全フィルタでブロック（${reason}）。語調を少しやわらげるか、箇条書きを修正して再実行してください。`);
-    }
-
-    // --- テキスト抽出（網羅） ---
-    const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
+    // --- 抽出（新旧網羅） ---
+    const cands = Array.isArray(data?.candidates) ? data.candidates : [];
     let text = "";
-
-    // 1) 全候補を走査し、content.parts[].text を収集
-    for (const c of candidates) {
-      const parts = c?.content?.parts;
-      if (Array.isArray(parts)) {
-        const t = parts.map(p => p?.text || "").join("");
+    for (const c of cands) {
+      if (Array.isArray(c?.content?.parts)) {
+        const t = c.content.parts.map(p => p?.text || "").join("");
         if (t) { text = t; break; }
       }
+      const alt = c?.content?.[0]?.text || c?.text || c?.output || "";
+      if (!text && alt) { text = alt; break; }
     }
-    // 2) content[0].text 形式
-    if (!text) {
-      for (const c of candidates) {
-        const maybe = c?.content?.[0]?.text || c?.text || c?.output;
-        if (maybe) { text = maybe; break; }
-      }
-    }
-    // 3) ルートレベルのフィールド（SDK差異）
-    if (!text) {
-      text = data?.output_text || data?.generated_text || data?.text || "";
-    }
+    if (!text) text = data?.output_text || data?.generated_text || data?.text || "";
 
-    if (!text) {
-      throw new Error("応答は成功しましたが本文を抽出できませんでした（形式差異）。数秒置いて再試行してください。");
-    }
-    return text.trim();
+    return { text: (text || "").trim(), raw };
   }
+
+  // 1) 現在の設定で（text/plain + safety緩和）
+  let r = await tryCall(BASE, MODEL, { responseMimeType: "text/plain", addSafety: true });
+  if (r.text) return r.text;
+
+  // 2) うまく抽出できない場合、同じモデルで素の呼び出しに切替
+  r = await tryCall(BASE, MODEL, { /* no responseMimeType, no safety */ });
+  if (r.text) return r.text;
+
+  // 3) それでも空なら v1beta / gemini-2.0-flash で再試行（最も相性が良い）
+  const fallbackBase  = "https://generativelanguage.googleapis.com/v1beta";
+  const fallbackModel = "gemini-2.0-flash";
+  r = await tryCall(fallbackBase, fallbackModel, { /*素*/ });
+  if (r.text) {
+    // ラベル更新
+    const s = document.getElementById("engineState");
+    if (s) s.textContent = "Engine: v1beta / gemini-2.0-flash (fallback)";
+    BASE = fallbackBase; MODEL = fallbackModel;
+    return r.text;
+  }
+
+  throw new Error("応答は返りましたが本文を抽出できませんでした。しばらく置いて再試行するか、別モデルでお試しください。");
+}
+
 
   // ========= 生成 =========
   async function generate(){

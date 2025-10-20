@@ -2,13 +2,16 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ご家族さま向けお知らせ・生成モック（自動モデル検出）</title>
+<title>ご家族さま向けお知らせ・生成モック（自動モデル検出／Gemini API）</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{--line:#e5e7eb;--muted:#6b7280;--primary:#1e88e5;--mail:#00b894;--radius:14px}
   *{box-sizing:border-box}
-  body{margin:0;padding:24px;font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;line-height:1.6}
+  body{margin:0;padding:24px;font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;line-height:1.6;background:#fff}
   h1{margin:0 0 8px;font-size:22px;font-weight:700}
   .sub{color:var(--muted);margin:0 0 16px;font-size:12px}
   .grid{display:grid;gap:18px;max-width:1080px;margin:0 auto}
@@ -46,17 +49,20 @@
 </style>
 </head>
 <body>
-  <h1>ご家族さま向けお知らせ・生成モック（自動モデル検出）</h1>
+  <h1>ご家族さま向けお知らせ・生成モック（自動モデル検出／Gemini API）</h1>
   <p class="sub">
+    Google Gemini API で右側の文章を自動生成します。200字前後。WebGPU不要。<br>
     <span class="pill" id="engineState">Engine: 検出中…</span>
   </p>
 
   <div class="grid">
+    <!-- 左：入力 -->
     <section class="card">
       <div class="hd">入力（箇条書き）</div>
       <div class="inner">
         <label for="bullets" style="font-weight:700">1行=1項目（例：日付＋内容 / 季節の一言 / 注意事項）</label>
         <textarea id="bullets" placeholder="10/12　お買い物イベント（しまむら）&#10;10/20　施設創立30周年&#10;朝晩冷え込み"></textarea>
+
         <div class="row">
           <label for="tone" style="font-weight:700">文体</label>
           <select id="tone">
@@ -65,14 +71,17 @@
           </select>
           <button id="sample">サンプル</button>
         </div>
+
         <div class="row"><button id="generate" class="btn-primary">生成AIでつくる</button></div>
+
         <div id="ok" class="ok"></div>
         <div id="err" class="error"></div>
-        <p class="hint">※AI Studioの Allowed domains に <b>https://masuyamayuki-hub.github.io</b> を登録してください。</p>
+        <p class="hint">※AI Studio の <b>Allowed domains</b> に <b>https://masuyamayuki-hub.github.io</b> を登録してください。</p>
         <details id="debugBox" style="display:none"><summary>デバッグ（API生レスポンス）</summary><pre id="debugPre"></pre></details>
       </div>
     </section>
 
+    <!-- 右：生成結果 -->
     <section class="mail" aria-live="polite">
       <div class="mail-top">
         <span>生成結果（送信メール内容へ反映）</span>
@@ -92,10 +101,10 @@
   </div>
 
 <script>
-  // === ご指定の API キー ===
+  // ====== ご指定の API キー ======
   const API_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
 
-  // === DOM ===
+  // ====== DOM ======
   const $ = s => document.querySelector(s);
   const bullets = $('#bullets'), toneSel = $('#tone'), out = $('#out');
   const ok = $('#ok'), err = $('#err');
@@ -106,18 +115,24 @@
   bullets.value = localStorage.getItem('mock.bullets') || '';
   toneSel.value = localStorage.getItem('mock.tone') || 'polite';
   const persist = () => { localStorage.setItem('mock.bullets', bullets.value); localStorage.setItem('mock.tone', toneSel.value); };
-  bullets.addEventListener('input', persist); toneSel.addEventListener('change', persist);
-  $('#sample').addEventListener('click', () => { bullets.value = ['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); persist(); });
+  bullets.addEventListener('input', persist);
+  toneSel.addEventListener('change', persist);
+  $('#sample').addEventListener('click', () => {
+    bullets.value = ['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); persist();
+  });
 
-  // === モデル自動検出（v1 → v1beta の順で探索、2.5/2.0優先） ===
-  const prefer = ['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-lite','gemini-2.0-flash-lite','gemini-1.5-flash'];
+  // ====== モデル自動検出（v1 → v1beta、1.5系は完全除外） ======
+  const prefer = ['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-lite','gemini-2.0-flash-lite'];
   let BASE = null, MODEL = null;
 
   async function listModels(base){
     const res = await fetch(`${base}/models?key=${encodeURIComponent(API_KEY)}`);
     if(!res.ok) throw new Error(`ListModels ${base} ${res.status}: ${await res.text()}`);
     const j = await res.json();
-    return (j.models||[]).filter(m => (m.supportedGenerationMethods||[]).includes('generateContent')).map(m => m.name.split('/').pop());
+    return (j.models||[])
+      .filter(m => (m.supportedGenerationMethods||[]).includes('generateContent'))
+      .map(m => m.name.split('/').pop())
+      .filter(n => !/^gemini-1\.5-/.test(n)); // 1.5 系は除外
   }
   function pick(names){
     for(const m of prefer){ if(names.includes(m)) return m; }
@@ -130,10 +145,15 @@
     }catch(e){ console.warn(e); }
     const n2 = await listModels('https://generativelanguage.googleapis.com/v1beta');
     if(n2.length){ BASE='https://generativelanguage.googleapis.com/v1beta'; MODEL=pick(n2); engineState.textContent=`Engine: v1beta / ${MODEL}`; engineBadge.textContent=engineState.textContent; return; }
-    throw new Error('利用可能なモデルが見つかりません（APIキー/ドメイン制限を確認）');
+
+    // 最低限の保険：2.0-flash を強制
+    BASE='https://generativelanguage.googleapis.com/v1';
+    MODEL='gemini-2.0-flash';
+    engineState.textContent=`Engine: v1 / ${MODEL} (forced)`;
+    engineBadge.textContent=engineState.textContent;
   }
 
-  // === プロンプト ===
+  // ====== プロンプト ======
   function buildPrompt(lines, tone){
     const style = (tone === 'polite') ? '丁寧な敬体（です・ます）' : 'やわらかいカジュアル体';
     return [
@@ -147,42 +167,70 @@
     ].join("\\n");
   }
 
-  // === 呼び出し & 抽出（新旧形式対応） ===
+  // ====== 呼び出し & テキスト抽出（新旧形式対応） ======
   async function callGemini(prompt){
-    const url = `${BASE}/models/${MODEL}:generateContent?key=${encodeURIComponent(API_KEY)}`;
-    const payload = { contents:[{role:"user",parts:[{text:prompt}]}], generationConfig:{ maxOutputTokens:256, temperature:0.7 } };
-    const res = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
-    const raw = await res.text();
-    let data=null; try{ data=JSON.parse(raw); }catch{}
-    if(!res.ok) throw new Error(`Gemini API error: ${res.status}\n${raw}`);
-    if(dbg&&dpre){ dbg.style.display='block'; dpre.textContent = raw; }
-
-    // 1) parts[].text
-    const cs = Array.isArray(data?.candidates)?data.candidates:[];
-    for(const c of cs){
-      if(Array.isArray(c?.content?.parts)){
-        const t = c.content.parts.map(p=>p?.text||"").join("");
-        if(t) return t.trim();
+    async function call(base, model){
+      const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(API_KEY)}`;
+      const payload = { contents:[{role:"user",parts:[{text:prompt}]}], generationConfig:{ maxOutputTokens:256, temperature:0.7 } };
+      const res = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
+      const raw = await res.text();
+      let data=null; try{ data=JSON.parse(raw); }catch{}
+      if(!res.ok){
+        return { ok:false, status:res.status, raw };
       }
+      if(dbg&&dpre){ dbg.style.display='block'; dpre.textContent = raw; }
+
+      // 1) parts[].text
+      const cs = Array.isArray(data?.candidates)?data.candidates:[];
+      for(const c of cs){
+        if(Array.isArray(c?.content?.parts)){
+          const t = c.content.parts.map(p=>p?.text||"").join("");
+          if(t) return { ok:true, text:t.trim() };
+        }
+      }
+      // 2) content[0].text / text / output
+      for(const c of cs){
+        const t = c?.content?.[0]?.text || c?.text || c?.output;
+        if(t) return { ok:true, text:String(t).trim() };
+      }
+      // 3) ルート互換
+      const t3 = data?.output_text || data?.generated_text || data?.text;
+      if(t3) return { ok:true, text:String(t3).trim() };
+      return { ok:false, status:200, raw };
     }
-    // 2) content[0].text / text / output
-    for(const c of cs){
-      const t = c?.content?.[0]?.text || c?.text || c?.output;
-      if(t) return String(t).trim();
+
+    // まず現在の設定で
+    let r = await call(BASE, MODEL);
+    if (r.ok) return r.text;
+
+    // 404 などの時は v1 / gemini-2.0-flash に切り替えて再試行
+    if (r.status === 404) {
+      BASE = 'https://generativelanguage.googleapis.com/v1';
+      MODEL = 'gemini-2.0-flash';
+      engineState.textContent = `Engine: v1 / ${MODEL} (fallback)`;
+      engineBadge.textContent = engineState.textContent;
+      r = await call(BASE, MODEL);
+      if (r.ok) return r.text;
     }
-    // 3) ルート互換
-    const t3 = data?.output_text || data?.generated_text || data?.text;
-    if(t3) return String(t3).trim();
-    throw new Error("応答は成功しましたが本文が抽出できませんでした。");
+
+    // まだダメなら v1beta / 2.0-flash も試す
+    BASE = 'https://generativelanguage.googleapis.com/v1beta';
+    MODEL = 'gemini-2.0-flash';
+    engineState.textContent = `Engine: v1beta / ${MODEL} (fallback)`;
+    engineBadge.textContent = engineState.textContent;
+    r = await call(BASE, MODEL);
+    if (r.ok) return r.text;
+
+    throw new Error(`Gemini API error: 生成に失敗しました。\n${r.raw || ''}`.trim());
   }
 
-  // === 生成 ===
+  // ====== 生成 ======
   async function generate(){
     err.style.display='none'; ok.style.display='none';
     const lines = (bullets.value||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(!lines.length){ out.textContent = "（左の赤枠に箇条書きを入力してください）"; return; }
-    out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…';
 
+    out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…';
     try{
       if(!BASE || !MODEL) await initModel();
       const prompt = buildPrompt(lines, toneSel.value);
@@ -194,17 +242,18 @@
         .replace(/[!?！？](?!(\n|$))/g, m => m + '\n')
         .replace(/\n{3,}/g, '\n\n');
 
-      out.textContent = formatted;
+      out.textContent = formatted || "（生成できませんでした）";
       ok.style.display='block'; ok.textContent = "生成に成功しました。";
     }catch(e){
       out.textContent = "生成に失敗しました。";
-      err.style.display='block'; err.textContent = String(e.message||e);
+      err.style.display='block'; err.textContent = String(e.message || e);
       console.error(e);
     }
   }
 
   document.getElementById('generate').addEventListener('click', generate);
   if(!bullets.value) document.getElementById('sample').click();
+
   (async()=>{ try{ await initModel(); }catch(e){ console.warn(e); }})();
 </script>
 </body>

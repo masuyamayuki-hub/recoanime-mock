@@ -89,7 +89,7 @@
   </div>
 
 <script>
-  // ====== AI Studio APIキー（指定の値） ======
+  // ====== AI Studio APIキー（ご指定の値） ======
   const RAW_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
   const API_KEY = RAW_KEY.trim();
 
@@ -101,7 +101,7 @@
   const originBox = $('#originBox');
   if (originBox) originBox.textContent = location.origin || "(file:// は不可。httpサーバで開いてください)";
 
-  // 保存/復元
+  // ====== 永続化 & サンプル ======
   bullets.value = localStorage.getItem('mock.bullets') || '';
   toneSel.value = localStorage.getItem('mock.tone') || 'polite';
   function persist(){ localStorage.setItem('mock.bullets', bullets.value); localStorage.setItem('mock.tone', toneSel.value); }
@@ -111,26 +111,25 @@
 
   // ========= モデル自動検出 =========
   const PreferredOrder = ['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-flash'];
-  let BASE = null, MODEL = null;
+  let BASE = null, MODEL = null, ALL_MODELS = [];
 
   async function listModels(base){
     const res = await fetch(`${base}/models?key=${encodeURIComponent(API_KEY)}`);
     if (!res.ok) throw new Error(`${base} ListModels failed: ${res.status}\n${await res.text()}`);
-    return res.json();
+    const j = await res.json();
+    return (j.models || []).filter(m => (m.supportedGenerationMethods||[]).includes('generateContent')).map(m => m.name.split('/').pop());
   }
-  function pickModel(models){
-    if (!models || !Array.isArray(models.models)) return null;
-    const usable = models.models.filter(m => (m.supportedGenerationMethods||[]).includes('generateContent'));
-    for (const name of PreferredOrder){ const hit = usable.find(m => m.name.endsWith(name)); if (hit) return hit.name.split('/').pop(); }
-    return usable[0]?.name.split('/').pop() || null;
+  function pickPreferred(names){
+    for (const want of PreferredOrder){ if (names.includes(want)) return want; }
+    return names[0] || null;
   }
   async function initModel(){
     try{
-      const j1 = await listModels('https://generativelanguage.googleapis.com/v1');
-      const m1 = pickModel(j1); if (m1){ BASE='https://generativelanguage.googleapis.com/v1'; MODEL=m1; engineState.textContent=`Engine: v1 / ${MODEL}`; return; }
-    }catch(e){ console.warn(e); }
-    const j2 = await listModels('https://generativelanguage.googleapis.com/v1beta');
-    const m2 = pickModel(j2); if (m2){ BASE='https://generativelanguage.googleapis.com/v1beta'; MODEL=m2; engineState.textContent=`Engine: v1beta / ${MODEL}`; return; }
+      const v1 = await listModels('https://generativelanguage.googleapis.com/v1');
+      if (v1.length){ BASE='https://generativelanguage.googleapis.com/v1'; ALL_MODELS = v1; MODEL = pickPreferred(v1); engineState.textContent=`Engine: v1 / ${MODEL}`; return; }
+    }catch(e){ console.warn('v1 list error', e); }
+    const v1b = await listModels('https://generativelanguage.googleapis.com/v1beta');
+    if (v1b.length){ BASE='https://generativelanguage.googleapis.com/v1beta'; ALL_MODELS = v1b; MODEL = pickPreferred(v1b); engineState.textContent=`Engine: v1beta / ${MODEL}`; return; }
     throw new Error('利用可能なモデルが見つかりませんでした（APIキー/ドメイン制限をご確認ください）');
   }
 
@@ -148,74 +147,98 @@
     ].join("\\n");
   }
 
-  // ========= API呼び出し（空返し対策） =========
- // ========= API呼び出し（空返し対策つきリトライ） =========
-async function callGemini(prompt){
-  async function tryCall(base, model, opts = {}) {
+  // ========= 共通: テキスト抽出 =========
+  function extractText(data){
+    // 1) candidates > content.parts[].text
+    const cands = Array.isArray(data?.candidates) ? data.candidates : [];
+    for (const c of cands){
+      if (Array.isArray(c?.content?.parts)){
+        const t = c.content.parts.map(p => p?.text || "").join("");
+        if (t) return t.trim();
+      }
+    }
+    // 2) candidates > content[0].text / text / output
+    for (const c of cands){
+      const t = c?.content?.[0]?.text || c?.text || c?.output;
+      if (t) return String(t).trim();
+    }
+    // 3) ルート互換フィールド
+    const t3 = data?.output_text || data?.generated_text || data?.text;
+    if (t3) return String(t3).trim();
+    return "";
+  }
+
+  // ========= 呼び出し（多段フォールバック） =========
+  async function callOnce(base, model, mode){
     const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(API_KEY)}`;
     const payload = {
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: Object.assign(
-        { maxOutputTokens: 256, temperature: 0.7 },
-        opts.responseMimeType ? { responseMimeType: opts.responseMimeType } : {}
-      ),
-      ...(opts.addSafety
-        ? { safetySettings: [
-              { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_HATE_SPEECH",       threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-            ] }
-        : {})
+      contents: [{ role: "user", parts: [{ text: mode.prompt }] }],
+      generationConfig: { maxOutputTokens: 256, temperature: 0.7, ...(mode.mime ? { responseMimeType: mode.mime } : {}) },
+      ...(mode.safety ? {
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH",       threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ]
+      } : {})
     };
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    const res = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
     const raw = await res.text();
-    let data = null; try { data = JSON.parse(raw); } catch {}
+    let data = null; try{ data = JSON.parse(raw); }catch{}
     if (!res.ok) throw new Error(`Gemini API error: ${res.status}\n${raw}`);
 
-    // --- 抽出（新旧網羅） ---
-    const cands = Array.isArray(data?.candidates) ? data.candidates : [];
-    let text = "";
-    for (const c of cands) {
-      if (Array.isArray(c?.content?.parts)) {
-        const t = c.content.parts.map(p => p?.text || "").join("");
-        if (t) { text = t; break; }
-      }
-      const alt = c?.content?.[0]?.text || c?.text || c?.output || "";
-      if (!text && alt) { text = alt; break; }
+    // デバッグ表示
+    debugBox.style.display = 'block';
+    debugPre.textContent = raw;
+
+    // ブロック検出
+    const finish = (data?.candidates?.[0]?.finishReason || "").toUpperCase();
+    const blockR = (data?.promptFeedback?.blockReason || "").toUpperCase();
+    if (finish === "SAFETY" || finish === "CONTENT_FILTER" || blockR.includes("BLOCK")) {
+      const reason = blockR || finish || "BLOCKED";
+      throw new Error(`安全フィルタでブロック（${reason}）。語調を少しやわらげるか、箇条書きを修正して再実行してください。`);
     }
-    if (!text) text = data?.output_text || data?.generated_text || data?.text || "";
 
-    return { text: (text || "").trim(), raw };
+    return { text: extractText(data), raw };
   }
 
-  // 1) 現在の設定で（text/plain + safety緩和）
-  let r = await tryCall(BASE, MODEL, { responseMimeType: "text/plain", addSafety: true });
-  if (r.text) return r.text;
+  async function callGemini(prompt){
+    // 1) 現在のモデルで text/plain + safety緩和
+    let r = await callOnce(BASE, MODEL, { prompt, mime:"text/plain", safety:true });
+    if (r.text) return r.text;
 
-  // 2) うまく抽出できない場合、同じモデルで素の呼び出しに切替
-  r = await tryCall(BASE, MODEL, { /* no responseMimeType, no safety */ });
-  if (r.text) return r.text;
+    // 2) 同モデル・素の呼び出し
+    r = await callOnce(BASE, MODEL, { prompt });
+    if (r.text) return r.text;
 
-  // 3) それでも空なら v1beta / gemini-2.0-flash で再試行（最も相性が良い）
-  const fallbackBase  = "https://generativelanguage.googleapis.com/v1beta";
-  const fallbackModel = "gemini-2.0-flash";
-  r = await tryCall(fallbackBase, fallbackModel, { /*素*/ });
-  if (r.text) {
-    // ラベル更新
-    const s = document.getElementById("engineState");
-    if (s) s.textContent = "Engine: v1beta / gemini-2.0-flash (fallback)";
-    BASE = fallbackBase; MODEL = fallbackModel;
-    return r.text;
+    // 3) 同じBASE内で別モデルを順に試す
+    for (const m of ALL_MODELS){
+      if (m === MODEL) continue;
+      try{
+        const rr = await callOnce(BASE, m, { prompt });
+        if (rr.text){
+          MODEL = m; engineState.textContent = `${BASE.endsWith('/v1') ? 'Engine: v1' : 'Engine: v1beta'} / ${MODEL} (switched)`;
+          return rr.text;
+        }
+      }catch(e){ console.warn('alt model fail', m, e); }
+    }
+
+    // 4) BASEを切替（v1 ↔ v1beta）して優先モデルで再試行
+    const otherBase = BASE.endsWith('/v1') ? 'https://generativelanguage.googleapis.com/v1beta' : 'https://generativelanguage.googleapis.com/v1';
+    try{
+      const names = await listModels(otherBase);
+      for (const m of [pickPreferred(names), ...names]){
+        if (!m) continue;
+        try{
+          const rr = await callOnce(otherBase, m, { prompt });
+          if (rr.text){ BASE = otherBase; MODEL = m; engineState.textContent = `${BASE.endsWith('/v1') ? 'Engine: v1' : 'Engine: v1beta'} / ${MODEL} (fallback)`; return rr.text; }
+        }catch(e){ console.warn('base switch fail', otherBase, m, e); }
+      }
+    }catch(e){ console.warn('list other base fail', e); }
+
+    throw new Error("応答は返りましたが本文を抽出できませんでした。数秒置いて再試行してください。");
   }
-
-  throw new Error("応答は返りましたが本文を抽出できませんでした。しばらく置いて再試行するか、別モデルでお試しください。");
-}
-
 
   // ========= 生成 =========
   async function generate(){
@@ -237,9 +260,11 @@ async function callGemini(prompt){
     }
   }
 
+  // イベント
   $('#generate').addEventListener('click', generate);
   bullets.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); generate(); } });
 
+  // 初期化
   if(!bullets.value) $('#sample').click();
   (async()=>{ try{ await initModel(); }catch(e){ console.warn('initModel warn:', e); }})();
 </script>

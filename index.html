@@ -19,10 +19,7 @@
   .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius)}
   .inner{padding:16px}
   .hd{padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700}
-  textarea{
-    width:100%;min-height:240px;border:1px solid var(--line);border-radius:12px;
-    padding:12px;font-size:16px;resize:vertical
-  }
+  textarea{width:100%;min-height:240px;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px;resize:vertical}
   .row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
   select,button{font-size:14px}
   button{appearance:none;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
@@ -35,13 +32,10 @@
   .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
   @keyframes b{from{transform:translateY(0)}to{transform:translateY(-3px)}}
   .mail{border:1px solid var(--line)}
-  .mail-top{background:var(--mail);color:#fff;padding:10px 14px;font-weight:700;font-size:18px;display:flex;justify-content:space-between;align-items:center}
+  .mail-top{background:#00b894;color:#fff;padding:10px 14px;font-weight:700;font-size:18px;display:flex;justify-content:space-between;align-items:center}
   .mail-body{padding:16px 18px}
   .small{font-size:12px;color:#374151}
-  .genbox{
-    border:2px solid #ef4444;border-radius:10px;padding:12px;min-height:140px;
-    white-space:pre-line;background:#fff;font-size:15px
-  }
+  .genbox{border:2px solid #ef4444;border-radius:10px;padding:12px;min-height:140px;white-space:pre-line;background:#fff;font-size:15px}
   .hr{border:none;border-top:1px dashed #9ca3af;margin:14px 0}
   .pill{display:inline-block;background:#eef2ff;border:1px solid #c7d2fe;border-radius:999px;padding:2px 8px;font-size:11px;color:#3730a3}
   details{margin-top:8px} summary{cursor:pointer;font-size:12px;color:#4b5563}
@@ -49,20 +43,15 @@
 </style>
 </head>
 <body>
-  <h1>ご家族さま向けお知らせ・生成モック（自動モデル検出／Gemini API）</h1>
-  <p class="sub">
-    Google Gemini API で右側の文章を自動生成します。200字前後。WebGPU不要。<br>
-    <span class="pill" id="engineState">Engine: 検出中…</span>
-  </p>
+  <h1>ご家族さま向けお知らせ・生成モック（自動モデル検出）</h1>
+  <p class="sub"><span class="pill" id="engineState">Engine: 検出中…</span></p>
 
   <div class="grid">
-    <!-- 左：入力 -->
     <section class="card">
       <div class="hd">入力（箇条書き）</div>
       <div class="inner">
         <label for="bullets" style="font-weight:700">1行=1項目（例：日付＋内容 / 季節の一言 / 注意事項）</label>
         <textarea id="bullets" placeholder="10/12　お買い物イベント（しまむら）&#10;10/20　施設創立30周年&#10;朝晩冷え込み"></textarea>
-
         <div class="row">
           <label for="tone" style="font-weight:700">文体</label>
           <select id="tone">
@@ -71,17 +60,13 @@
           </select>
           <button id="sample">サンプル</button>
         </div>
-
         <div class="row"><button id="generate" class="btn-primary">生成AIでつくる</button></div>
-
-        <div id="ok" class="ok"></div>
-        <div id="err" class="error"></div>
-        <p class="hint">※AI Studio の <b>Allowed domains</b> に <b>https://masuyamayuki-hub.github.io</b> を登録してください。</p>
+        <div id="ok" class="ok"></div><div id="err" class="error"></div>
+        <p class="hint">※AI Studioの Allowed domains に <b>https://masuyamayuki-hub.github.io</b> を登録してください。</p>
         <details id="debugBox" style="display:none"><summary>デバッグ（API生レスポンス）</summary><pre id="debugPre"></pre></details>
       </div>
     </section>
 
-    <!-- 右：生成結果 -->
     <section class="mail" aria-live="polite">
       <div class="mail-top">
         <span>生成結果（送信メール内容へ反映）</span>
@@ -101,159 +86,153 @@
   </div>
 
 <script>
-  // ====== ご指定の API キー ======
   const API_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
 
-  // ====== DOM ======
   const $ = s => document.querySelector(s);
-  const bullets = $('#bullets'), toneSel = $('#tone'), out = $('#out');
-  const ok = $('#ok'), err = $('#err');
-  const engineState = $('#engineState'), engineBadge = $('#engineBadge');
-  const dbg = $('#debugBox'), dpre = $('#debugPre');
+  const bullets=$('#bullets'), toneSel=$('#tone'), out=$('#out'), ok=$('#ok'), err=$('#err');
+  const engineState=$('#engineState'), engineBadge=$('#engineBadge');
+  const dbg=$('#debugBox'), dpre=$('#debugPre');
 
-  // 保存/復元 + サンプル
   bullets.value = localStorage.getItem('mock.bullets') || '';
   toneSel.value = localStorage.getItem('mock.tone') || 'polite';
-  const persist = () => { localStorage.setItem('mock.bullets', bullets.value); localStorage.setItem('mock.tone', toneSel.value); };
-  bullets.addEventListener('input', persist);
-  toneSel.addEventListener('change', persist);
-  $('#sample').addEventListener('click', () => {
-    bullets.value = ['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); persist();
-  });
+  const persist = ()=>{ localStorage.setItem('mock.bullets', bullets.value); localStorage.setItem('mock.tone', toneSel.value); };
+  bullets.addEventListener('input', persist); toneSel.addEventListener('change', persist);
+  $('#sample').addEventListener('click', ()=>{ bullets.value=['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); persist(); });
 
-  // ====== モデル自動検出（v1 → v1beta、1.5系は完全除外） ======
-  const prefer = ['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-lite','gemini-2.0-flash-lite'];
-  let BASE = null, MODEL = null;
+  // ---- モデル自動検出（1.5系は除外） ----
+  const prefer=['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-lite','gemini-2.0-flash-lite'];
+  let BASE=null, MODEL=null;
 
   async function listModels(base){
-    const res = await fetch(`${base}/models?key=${encodeURIComponent(API_KEY)}`);
-    if(!res.ok) throw new Error(`ListModels ${base} ${res.status}: ${await res.text()}`);
-    const j = await res.json();
+    const r=await fetch(`${base}/models?key=${encodeURIComponent(API_KEY)}`);
+    if(!r.ok) throw new Error(`ListModels ${base} ${r.status}: ${await r.text()}`);
+    const j=await r.json();
     return (j.models||[])
-      .filter(m => (m.supportedGenerationMethods||[]).includes('generateContent'))
-      .map(m => m.name.split('/').pop())
-      .filter(n => !/^gemini-1\.5-/.test(n)); // 1.5 系は除外
+      .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+      .map(m=>m.name.split('/').pop())
+      .filter(n=>!/^gemini-1\.5-/.test(n));
   }
-  function pick(names){
-    for(const m of prefer){ if(names.includes(m)) return m; }
-    return names[0] || null;
-  }
+  function pick(names){ for(const m of prefer){ if(names.includes(m)) return m; } return names[0]||null; }
   async function initModel(){
     try{
-      const n1 = await listModels('https://generativelanguage.googleapis.com/v1');
+      const n1=await listModels('https://generativelanguage.googleapis.com/v1');
       if(n1.length){ BASE='https://generativelanguage.googleapis.com/v1'; MODEL=pick(n1); engineState.textContent=`Engine: v1 / ${MODEL}`; engineBadge.textContent=engineState.textContent; return; }
     }catch(e){ console.warn(e); }
-    const n2 = await listModels('https://generativelanguage.googleapis.com/v1beta');
+    const n2=await listModels('https://generativelanguage.googleapis.com/v1beta');
     if(n2.length){ BASE='https://generativelanguage.googleapis.com/v1beta'; MODEL=pick(n2); engineState.textContent=`Engine: v1beta / ${MODEL}`; engineBadge.textContent=engineState.textContent; return; }
-
-    // 最低限の保険：2.0-flash を強制
-    BASE='https://generativelanguage.googleapis.com/v1';
-    MODEL='gemini-2.0-flash';
-    engineState.textContent=`Engine: v1 / ${MODEL} (forced)`;
-    engineBadge.textContent=engineState.textContent;
+    BASE='https://generativelanguage.googleapis.com/v1'; MODEL='gemini-2.0-flash';
+    engineState.textContent=`Engine: v1 / ${MODEL} (forced)`; engineBadge.textContent=engineState.textContent;
   }
 
-  // ====== プロンプト ======
-  function buildPrompt(lines, tone){
-    const style = (tone === 'polite') ? '丁寧な敬体（です・ます）' : 'やわらかいカジュアル体';
+  // ---- プロンプト ----
+  function buildPrompt(lines,tone){
+    const style = tone==='polite' ? '丁寧な敬体（です・ます）' : 'やわらかいカジュアル体';
     return [
       "あなたは介護事業所の職員として、ご家族向けのお知らせ文を作成します。",
       "与えられた箇条書きの事実をもとに、200文字前後で日本語の短い段落を1つ作ってください。",
       "文体:", style + "。",
       "条件: 1) 誇張しない 2) 日付は「○日に〜を予定しています」と自然に言い換える 3) 季節の一言があれば冒頭に 4) 結びは簡潔に。",
+      "出力は純粋な文章テキストのみ。マークダウン・コード・JSONは出力しないでください。",
       "箇条書き:",
-      lines.map(l => "- " + l).join("\\n"),
+      lines.map(l=>"- "+l).join("\\n"),
       "出力は本文のみ。"
     ].join("\\n");
   }
 
-  // ====== 呼び出し & テキスト抽出（新旧形式対応） ======
+  // ---- 抽出器（強化版） ----
+  function decodeBase64Utf8(b64){
+    try{ return decodeURIComponent(escape(atob(b64))); }catch{ try{ return atob(b64); }catch{ return ""; } }
+  }
+  function extractText(data){
+    // safety / block
+    const block = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
+    if(block && String(block).toUpperCase().includes('SAFETY')){
+      throw new Error("安全フィルタでブロックされました。表現をやわらげて再試行してください。");
+    }
+    const cands = Array.isArray(data?.candidates)?data.candidates:[];
+    if(!cands.length) return "";
+
+    // 1) parts[].text / stringValue / inlineData / executableCode.prompt / functionResponse
+    let chunks=[];
+    for(const c of cands){
+      const parts = Array.isArray(c?.content?.parts)?c.content.parts:[];
+      for(const p of parts){
+        if(!p) continue;
+        if(typeof p === "string"){ chunks.push(p); continue; }
+        if(typeof p.text === "string"){ chunks.push(p.text); continue; }
+        if(typeof p.stringValue === "string"){ chunks.push(p.stringValue); continue; }
+        if(p.inlineData?.data){ chunks.push(decodeBase64Utf8(p.inlineData.data)); continue; }
+        if(p.executableCode?.prompt){ chunks.push(p.executableCode.prompt); continue; }
+        if(p.functionResponse?.name){ chunks.push(String(p.functionResponse.name)); continue; }
+      }
+    }
+    const joined = chunks.join("").trim();
+    if(joined) return joined;
+
+    // 2) 既存の互換フィールド
+    for(const c of cands){
+      const t = c?.content?.[0]?.text || c?.text || c?.output;
+      if(t) return String(t).trim();
+    }
+    const t3 = data?.output_text || data?.generated_text || data?.text;
+    if(t3) return String(t3).trim();
+    return "";
+  }
+
+  // ---- 呼び出し & フォールバック ----
   async function callGemini(prompt){
-    async function call(base, model){
+    async function call(base,model){
       const url = `${base}/models/${model}:generateContent?key=${encodeURIComponent(API_KEY)}`;
       const payload = { contents:[{role:"user",parts:[{text:prompt}]}], generationConfig:{ maxOutputTokens:256, temperature:0.7 } };
-      const res = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
-      const raw = await res.text();
-      let data=null; try{ data=JSON.parse(raw); }catch{}
-      if(!res.ok){
-        return { ok:false, status:res.status, raw };
-      }
-      if(dbg&&dpre){ dbg.style.display='block'; dpre.textContent = raw; }
-
-      // 1) parts[].text
-      const cs = Array.isArray(data?.candidates)?data.candidates:[];
-      for(const c of cs){
-        if(Array.isArray(c?.content?.parts)){
-          const t = c.content.parts.map(p=>p?.text||"").join("");
-          if(t) return { ok:true, text:t.trim() };
-        }
-      }
-      // 2) content[0].text / text / output
-      for(const c of cs){
-        const t = c?.content?.[0]?.text || c?.text || c?.output;
-        if(t) return { ok:true, text:String(t).trim() };
-      }
-      // 3) ルート互換
-      const t3 = data?.output_text || data?.generated_text || data?.text;
-      if(t3) return { ok:true, text:String(t3).trim() };
+      const res = await fetch(url,{ method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
+      const raw = await res.text(); let data=null; try{ data=JSON.parse(raw); }catch{}
+      if(!res.ok) return { ok:false, status:res.status, raw };
+      if(dbg&&dpre){ dbg.style.display='block'; dpre.textContent=raw; }
+      try{ const t=extractText(data); if(t) return { ok:true, text:t }; }catch(e){ return { ok:false, status:200, raw:String(e.message||e) }; }
       return { ok:false, status:200, raw };
     }
 
-    // まず現在の設定で
+    // 現在設定
     let r = await call(BASE, MODEL);
-    if (r.ok) return r.text;
+    if(r.ok) return r.text;
 
-    // 404 などの時は v1 / gemini-2.0-flash に切り替えて再試行
-    if (r.status === 404) {
-      BASE = 'https://generativelanguage.googleapis.com/v1';
-      MODEL = 'gemini-2.0-flash';
-      engineState.textContent = `Engine: v1 / ${MODEL} (fallback)`;
-      engineBadge.textContent = engineState.textContent;
-      r = await call(BASE, MODEL);
-      if (r.ok) return r.text;
+    // 404 → v1 / 2.0-flash
+    if(r.status===404){
+      BASE='https://generativelanguage.googleapis.com/v1'; MODEL='gemini-2.0-flash';
+      engineState.textContent=`Engine: v1 / ${MODEL} (fallback)`; engineBadge.textContent=engineState.textContent;
+      r = await call(BASE, MODEL); if(r.ok) return r.text;
     }
+    // まだダメ → v1beta / 2.0-flash
+    BASE='https://generativelanguage.googleapis.com/v1beta'; MODEL='gemini-2.0-flash';
+    engineState.textContent=`Engine: v1beta / ${MODEL} (fallback)`; engineBadge.textContent=engineState.textContent;
+    r = await call(BASE, MODEL); if(r.ok) return r.text;
 
-    // まだダメなら v1beta / 2.0-flash も試す
-    BASE = 'https://generativelanguage.googleapis.com/v1beta';
-    MODEL = 'gemini-2.0-flash';
-    engineState.textContent = `Engine: v1beta / ${MODEL} (fallback)`;
-    engineBadge.textContent = engineState.textContent;
-    r = await call(BASE, MODEL);
-    if (r.ok) return r.text;
-
-    throw new Error(`Gemini API error: 生成に失敗しました。\n${r.raw || ''}`.trim());
+    throw new Error(`応答は成功しましたが本文が抽出できませんでした。\n${r.raw||""}`.trim());
   }
 
-  // ====== 生成 ======
+  // ---- 生成 ----
   async function generate(){
     err.style.display='none'; ok.style.display='none';
-    const lines = (bullets.value||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    if(!lines.length){ out.textContent = "（左の赤枠に箇条書きを入力してください）"; return; }
+    const lines=(bullets.value||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    if(!lines.length){ out.textContent="（左の赤枠に箇条書きを入力してください）"; return; }
+    out.innerHTML='<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…';
 
-    out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…';
     try{
-      if(!BASE || !MODEL) await initModel();
+      if(!BASE||!MODEL) await initModel();
       const prompt = buildPrompt(lines, toneSel.value);
       const text = await callGemini(prompt);
-
-      // 「。」や「！」の後で改行（既に改行がある所は追加しない）
-      const formatted = text
-        .replace(/。(?!(\n|$))/g, '。\n')
-        .replace(/[!?！？](?!(\n|$))/g, m => m + '\n')
-        .replace(/\n{3,}/g, '\n\n');
-
+      const formatted = text.replace(/。(?!(\n|$))/g,'。\n').replace(/[!?！？](?!(\n|$))/g,m=>m+'\n').replace(/\n{3,}/g,'\n\n');
       out.textContent = formatted || "（生成できませんでした）";
-      ok.style.display='block'; ok.textContent = "生成に成功しました。";
+      ok.style.display='block'; ok.textContent='生成に成功しました。';
     }catch(e){
-      out.textContent = "生成に失敗しました。";
-      err.style.display='block'; err.textContent = String(e.message || e);
+      out.textContent='生成に失敗しました。';
+      err.style.display='block'; err.textContent=String(e.message||e);
       console.error(e);
     }
   }
 
   document.getElementById('generate').addEventListener('click', generate);
   if(!bullets.value) document.getElementById('sample').click();
-
   (async()=>{ try{ await initModel(); }catch(e){ console.warn(e); }})();
 </script>
 </body>

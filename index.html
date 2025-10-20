@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ご家族さま向けお知らせ・生成モック（Gemini API 版）</title>
+<title>ご家族さま向けお知らせ・生成モック（Gemini v1beta 版）</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{ --bg:#fff; --line:#e5e7eb; --muted:#6b7280; --primary:#1e88e5; --primary-weak:#e3f2fd; --accent:#0ea5e9; --mail:#00b894; --radius:14px; }
@@ -51,8 +51,8 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>ご家族さま向けお知らせ・生成モック（Gemini API 版）</h1>
-  <p class="sub">WebGPU不要。Google Gemini 1.5 Flash を利用して右側の文面を自動生成します（200字前後）。</p>
+  <h1>ご家族さま向けお知らせ・生成モック（Gemini v1beta 版）</h1>
+  <p class="sub">WebGPU不要。Gemini 1.5 Flash（無料枠）で右側の文面を自動生成します（200字前後）。</p>
 
   <div class="grid">
     <!-- 左：入力 -->
@@ -87,7 +87,7 @@
     <section class="mail" aria-live="polite">
       <div class="mail-top">
         <span>生成結果（送信メール内容へ反映）</span>
-        <span class="engine" id="engineState">Engine: Gemini API</span>
+        <span class="engine" id="engineState">Engine: Gemini API (v1beta)</span>
       </div>
       <div class="mail-body">
         <div class="small">利用者ご家族様</div>
@@ -106,11 +106,9 @@
 </div>
 
 <script>
-  // ====== 設定（埋め込みAPIキー） ======
-  // ※ 公開時は必ず Google Cloud Console で「HTTP リファラ制限」を設定してください。
-  //    例: https://masuyamayuki-hub.github.io/* のみ許可
-  const GEMINI_API_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
-  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
+  // ====== Gemini API（v1beta＋固定モデル名） ======
+  const API_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
+  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
   // ====== DOM ======
   const $ = s => document.querySelector(s);
@@ -124,7 +122,7 @@
   bullets.addEventListener('input', persist);
   toneSel.addEventListener('change', persist);
 
-  // ====== ユーティリティ ======
+  // ====== テキスト整形 & 擬似生成 ======
   function fitLengthJa(text, min=160, max=220){
     const t = (text||"").replace(/\s+/g,'').replace(/[\u3000]/g,'');
     if(t.length<=max && t.length>=min) return t;
@@ -146,6 +144,8 @@
     const rest = items.filter(s=>!(/^\d{1,2}\/\d{1,2}/.test(s)||/(冷え|暑|寒|涼|暖か)/.test(s))).join("。");
     return [greet, dated, rest?rest+"。":""].join("");
   }
+
+  // ====== プロンプト生成 ======
   function buildPrompt(lines, tone){
     const style = (tone==='polite') ? '丁寧な敬体（です・ます）' : 'やわらかいカジュアル体';
     return [
@@ -161,9 +161,11 @@
 
   // ====== Gemini 呼び出し ======
   async function callGemini(prompt){
-    const url = `${GEMINI_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`;
-    const body = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-    const res = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) });
+    const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(API_KEY)}`, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
+    });
     if(!res.ok){
       const txt = await res.text().catch(()=>String(res.status));
       throw new Error(`Gemini API error: ${res.status} ${txt}`);
@@ -172,7 +174,7 @@
     return data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('') || '';
   }
 
-  // ====== 生成実行 ======
+  // ====== 実行 ======
   async function generate(){
     err.style.display='none'; err.textContent=''; ok.style.display='none';
     const lines = (bullets.value||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -191,12 +193,10 @@
     }
   }
 
-  // ====== イベント ======
   document.getElementById('generate').addEventListener('click', generate);
   document.getElementById('fallback').addEventListener('click', ()=>{ out.textContent = fitLengthJa(pseudoGenerate(bullets.value),160,220); });
   document.getElementById('sample').addEventListener('click', ()=>{ bullets.value=['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); persist(); });
 
-  // 初期入力が空ならサンプルセット
   if(!bullets.value) document.getElementById('sample').click();
 </script>
 </body>

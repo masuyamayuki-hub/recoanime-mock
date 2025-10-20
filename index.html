@@ -3,42 +3,56 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ご家族さま向けお知らせ・生成モック（API版：Gemini/OpenAI/Claude）</title>
+<title>ご家族さま向けお知らせ・生成モック（Gemini API 版）</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{ --bg:#fff; --line:#e5e7eb; --muted:#6b7280; --primary:#1e88e5; --primary-weak:#e3f2fd; --accent:#0ea5e9; --mail:#00b894; --radius:14px; }
-  *{box-sizing:border-box} body{margin:0;padding:24px;background:var(--bg);font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;line-height:1.6}
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--bg);font-family:"Noto Sans JP",system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:#111827;line-height:1.6}
   .wrap{max-width:1080px;margin:0 auto}
-  h1{margin:0 0 8px;font-size:22px;font-weight:700} .sub{color:var(--muted);margin:0 0 16px;font-size:12px}
-  .grid{display:grid;gap:18px} @media (min-width:1000px){.grid{grid-template-columns:1fr 1fr}}
+  h1{margin:0 0 8px;font-size:22px;font-weight:700}
+  .sub{color:var(--muted);margin:0 0 16px;font-size:12px}
+  .grid{display:grid;gap:18px}
+  @media (min-width:1000px){.grid{grid-template-columns:1fr 1fr}}
   .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 2px 10px rgba(0,0,0,.04)}
   .card .hd{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
   .pill{background:var(--primary-weak);color:var(--primary);font-weight:700;padding:3px 10px;border-radius:999px;font-size:12px}
-  .inner{padding:16px} label{display:block;font-weight:700;margin:8px 0 6px}
-  textarea,input,select{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:14px;background:#fff;outline:none}
-  textarea{min-height:140px;resize:vertical} textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(14,165,233,.12)}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px} button{appearance:none;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
-  .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)} .btn-toggle{background:#fff}
-  .redbox{border:2px solid #ef4444;border-radius:12px;padding:12px} .meta{font-size:12px;color:var(--muted)}
-  .mail{background:#fff;border:1px solid var(--line)} .mail-top{background:var(--mail);color:#fff;padding:10px 14px;font-weight:700;font-size:20px;display:flex;justify-content:space-between}
-  .mail-body{padding:16px 18px} .small{font-size:12px} .greet{margin:2px 0 10px}
-  .genbox{border:2px solid #ef4444;border-radius:10px;padding:12px;min-height:96px;white-space:pre-wrap;background:#fff}
-  .bullet{display:flex;gap:6px;align-items:flex-start}.bullet::before{content:"▼";font-weight:700;margin-top:0}
+  .inner{padding:16px}
+  label{display:block;font-weight:700;margin:8px 0 6px}
+  textarea,select,button{font-size:15px}
+  textarea{width:100%;min-height:160px;resize:vertical;border:1px solid var(--line);border-radius:12px;padding:12px;outline:none}
+  textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(14,165,233,.12)}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  button{appearance:none;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+  .btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .redbox{border:2px solid #ef4444;border-radius:12px;padding:12px}
+  .meta{font-size:12px;color:var(--muted)}
+  .mail{background:#fff;border:1px solid var(--line)}
+  .mail-top{background:var(--mail);color:#fff;padding:10px 14px;font-weight:700;font-size:20px;display:flex;justify-content:space-between;align-items:center}
+  .mail-body{padding:16px 18px}
+  .small{font-size:12px}
+  .greet{margin:2px 0 10px}
+  .genbox{border:2px solid #ef4444;border-radius:10px;padding:12px;min-height:110px;white-space:pre-wrap;background:#fff}
+  .bullet{display:flex;gap:6px;align-items:flex-start}
+  .bullet::before{content:"▼";font-weight:700;margin-top:0}
   .qr-area{display:flex;gap:10px;align-items:center;margin:8px 0 0}
   .qr{width:44px;height:44px;background:conic-gradient(#000 25%,#fff 0 50%,#000 0 75%,#fff 0);mask:radial-gradient(circle at 50% 50%,rgba(0,0,0,.95) 26px, transparent 27px);border:2px solid #111;border-radius:6px}
   .hr{border:none;border-top:1px dashed #9ca3af;margin:14px 0}
-  .engine{font-size:12px;color:#fff;opacity:.9}
-  .loader{display:inline-flex;align-items:center;gap:6px}.dot{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.8;animation:b 1s infinite alternate}
-  .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}@keyframes b{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+  .engine{font-size:12px;color:#fff;opacity:.95}
+  .loader{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.85;animation:b 1s infinite alternate}
+  .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+  @keyframes b{from{transform:translateY(0)}to{transform:translateY(-3px)}}
   .error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;display:none}
   .ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;display:none}
+  .row{display:flex;gap:10px;align-items:center;margin-top:8px}
+  select{border:1px solid var(--line);border-radius:10px;padding:8px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>ご家族さま向けお知らせ・生成モック（API版：Gemini/OpenAI/Claude）</h1>
-  <p class="sub">WebGPU不要。Geminiはブラウザから直接呼び出し可能。OpenAI/Claudeは**プロキシURL**経由で利用できます。</p>
+  <h1>ご家族さま向けお知らせ・生成モック（Gemini API 版）</h1>
+  <p class="sub">WebGPU不要。Google Gemini 1.5 Flash を利用して右側の文面を自動生成します（200字前後）。</p>
 
   <div class="grid">
     <!-- 左：入力 -->
@@ -50,43 +64,22 @@
           <textarea id="bullets" placeholder="10/12　お買い物イベント（しまむら）&#10;10/20　施設創立30周年&#10;朝晩冷え込み"></textarea>
         </div>
 
-        <div class="row" style="margin-top:8px">
-          <div>
-            <label>プロバイダ</label>
-            <select id="provider">
-              <option value="gemini" selected>Gemini（1.5-flash / 直接呼び出し）</option>
-              <option value="openai">OpenAI（gpt-4o-mini / プロキシ必要）</option>
-              <option value="anthropic">Claude（3.5 Haiku / プロキシ必要）</option>
-            </select>
-          </div>
-          <div>
-            <label>文体</label>
-            <select id="tone">
-              <option value="polite" selected>丁寧（です・ます）</option>
-              <option value="casual">カジュアル</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:8px">
-          <div>
-            <label>APIキー</label>
-            <input id="apiKey" placeholder="例）AIza... / sk-... / apiKey" />
-          </div>
-          <div>
-            <label>（OpenAI/Claude用）プロキシURL</label>
-            <input id="proxy" placeholder="例）https://your-worker.example.workers.dev" />
-          </div>
+        <div class="row">
+          <label for="tone"><strong>文体</strong></label>
+          <select id="tone">
+            <option value="polite" selected>丁寧（です・ます）</option>
+            <option value="casual">カジュアル</option>
+          </select>
+          <button id="sample">サンプル</button>
         </div>
 
         <div class="btns">
-          <button id="sample">サンプル</button>
           <button id="generate" class="btn-primary">生成AIでつくる</button>
           <button id="fallback">簡易生成（擬似）</button>
         </div>
         <div id="ok" class="ok"></div>
         <div id="err" class="error"></div>
-        <p class="meta">※APIキーはブラウザのlocalStorageに保存されます（保存したくない場合は空欄のままにしてください）。</p>
+        <p class="meta">※入力内容と文体設定はブラウザに保存されます。Geminiの無料枠内で利用できます。</p>
       </div>
     </section>
 
@@ -94,7 +87,7 @@
     <section class="mail" aria-live="polite">
       <div class="mail-top">
         <span>生成結果（送信メール内容へ反映）</span>
-        <span class="engine" id="engineState">Engine: API mode</span>
+        <span class="engine" id="engineState">Engine: Gemini API</span>
       </div>
       <div class="mail-body">
         <div class="small">利用者ご家族様</div>
@@ -113,47 +106,46 @@
 </div>
 
 <script>
+  // ====== 設定（埋め込みAPIキー） ======
+  // ※ 公開時は必ず Google Cloud Console で「HTTP リファラ制限」を設定してください。
+  //    例: https://masuyamayuki-hub.github.io/* のみ許可
+  const GEMINI_API_KEY = "AIzaSyAmLXF9IQDUYo7fef33wNp_69yuncyMLUY";
+  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
+
+  // ====== DOM ======
   const $ = s => document.querySelector(s);
   const out = $('#out'), err = $('#err'), ok = $('#ok');
-  const providerSel = $('#provider'), toneSel = $('#tone');
-  const keyInput = $('#apiKey'), proxyInput = $('#proxy');
-  const bullets = $('#bullets');
+  const toneSel = $('#tone'), bullets = $('#bullets');
 
-  // ------- storage load/save
-  keyInput.value = localStorage.getItem('api.key') || '';
-  proxyInput.value = localStorage.getItem('api.proxy') || '';
-  providerSel.value = localStorage.getItem('api.provider') || 'gemini';
-  toneSel.value = localStorage.getItem('mock.tone') || 'polite';
+  // ====== 保存/復元 ======
   bullets.value = localStorage.getItem('mock.bullets') || '';
+  toneSel.value = localStorage.getItem('mock.tone') || 'polite';
+  function persist(){ localStorage.setItem('mock.bullets', bullets.value); localStorage.setItem('mock.tone', toneSel.value); }
+  bullets.addEventListener('input', persist);
+  toneSel.addEventListener('change', persist);
 
-  for(const el of [keyInput, proxyInput, providerSel, toneSel, bullets]){
-    el.addEventListener('change', ()=>{
-      localStorage.setItem('api.key', keyInput.value);
-      localStorage.setItem('api.proxy', proxyInput.value);
-      localStorage.setItem('api.provider', providerSel.value);
-      localStorage.setItem('mock.tone', toneSel.value);
-      localStorage.setItem('mock.bullets', bullets.value);
-    });
-  }
-
+  // ====== ユーティリティ ======
   function fitLengthJa(text, min=160, max=220){
-    const t = text.replace(/\\s+/g,'').replace(/[\\u3000]/g,'');
+    const t = (text||"").replace(/\s+/g,'').replace(/[\u3000]/g,'');
     if(t.length<=max && t.length>=min) return t;
-    if(t.length>max){ const cut=t.slice(0,max); const last=Math.max(cut.lastIndexOf('。'),cut.lastIndexOf('！'),cut.lastIndexOf('？')); return (last>80?cut.slice(0,last+1):cut+'。'); }
+    if(t.length>max){
+      const cut=t.slice(0,max);
+      const last=Math.max(cut.lastIndexOf('。'),cut.lastIndexOf('！'),cut.lastIndexOf('？'));
+      return (last>80?cut.slice(0,last+1):cut+'。');
+    }
     return t;
   }
-
   function pseudoGenerate(text){
-    const items = text.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+    const items = (text||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(!items.length) return "（左の赤枠に箇条書きを入力し、「生成AIでつくる」を押してください）";
     const hasSeason = items.find(s=>/(冷え|暑|寒|涼|暖か)/.test(s));
-    const greet = hasSeason ? "最近は朝晩の空気もひんやりとしてまいりましたが、皆さまお変わりなくお過ごしでしょうか。" :
-                              "いつも当事業所の運営にご理解ご協力を賜り、誠にありがとうございます。";
-    const dated = items.filter(s=>/^\\d{1,2}\\/\\d{1,2}/.test(s)).map(s=>s.replace(/^(\\d{1,2})\\/(\\d{1,2}).*?(.*)$/,"$2日に$3を予定しております。")).join("");
-    const rest = items.filter(s=>!(/^\\d{1,2}\\/\\d{1,2}/.test(s)||/(冷え|暑|寒|涼|暖か)/.test(s))).join("。");
+    const greet = hasSeason ? "最近は朝晩の空気もひんやりとしてまいりましたが、皆さまお変わりなくお過ごしでしょうか。"
+                             : "いつも当事業所の運営にご理解ご協力を賜り、誠にありがとうございます。";
+    const dated = items.filter(s=>/^\d{1,2}\/\d{1,2}/.test(s))
+      .map(s=>s.replace(/^(\d{1,2})\/(\d{1,2}).*?(.*)$/,"$2日に$3を予定しております。")).join("");
+    const rest = items.filter(s=>!(/^\d{1,2}\/\d{1,2}/.test(s)||/(冷え|暑|寒|涼|暖か)/.test(s))).join("。");
     return [greet, dated, rest?rest+"。":""].join("");
   }
-
   function buildPrompt(lines, tone){
     const style = (tone==='polite') ? '丁寧な敬体（です・ます）' : 'やわらかいカジュアル体';
     return [
@@ -162,72 +154,35 @@
       "文体:", style+"。",
       "条件: 1) 誇張しない 2) 日付は「○日に〜を予定しています」と自然に言い換える 3) 季節の一言があれば冒頭に 4) 結びは簡潔に。",
       "箇条書き:",
-      lines.map(l => "- " + l).join("\\n"),
+      lines.map(l => "- " + l).join("\n"),
       "出力は本文のみ。"
-    ].join("\\n");
+    ].join("\n");
   }
 
-  async function callGemini(apiKey, prompt){
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(apiKey)}`;
+  // ====== Gemini 呼び出し ======
+  async function callGemini(prompt){
+    const url = `${GEMINI_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`;
     const body = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
     const res = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) });
-    if(!res.ok){ throw new Error('Gemini API error: '+res.status+' '+await res.text()); }
+    if(!res.ok){
+      const txt = await res.text().catch(()=>String(res.status));
+      throw new Error(`Gemini API error: ${res.status} ${txt}`);
+    }
     const data = await res.json();
     return data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('') || '';
   }
 
-  // OpenAI/Claude はCORSとキー露出のため基本は「プロキシ」を経由してください。
-  // プロキシは Cloudflare Workers/Netlify Functions などで簡単に作れます（README例参照）。
-  async function callOpenAI_viaProxy(proxy, apiKey, prompt){
-    if(!proxy) throw new Error('OpenAIはプロキシURLが必要です。');
-    const res = await fetch(proxy + "/openai/chat", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", "Authorization": "Bearer "+apiKey },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{role:"user", content: prompt}], temperature:0.7, max_tokens:220 })
-    });
-    if(!res.ok){ throw new Error('OpenAI proxy error: '+res.status+' '+await res.text()); }
-    const data = await res.json();
-    return data?.choices?.[0]?.message?.content || '';
-  }
-
-  async function callAnthropic_viaProxy(proxy, apiKey, prompt){
-    if(!proxy) throw new Error('ClaudeはプロキシURLが必要です。');
-    const res = await fetch(proxy + "/anthropic/messages", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", "x-api-key": apiKey },
-      body: JSON.stringify({ model: "claude-3-5-haiku-latest", max_tokens: 300, temperature: 0.7, messages: [{ role:"user", content: prompt }] })
-    });
-    if(!res.ok){ throw new Error('Anthropic proxy error: '+res.status+' '+await res.text()); }
-    const data = await res.json();
-    // 期待形: {content:[{type:"text",text:"..."}]}
-    return (data?.content && data.content[0]?.text) || '';
-  }
-
+  // ====== 生成実行 ======
   async function generate(){
     err.style.display='none'; err.textContent=''; ok.style.display='none';
-    const lines = bullets.value.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+    const lines = (bullets.value||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     if(!lines.length){ out.textContent = "（左の赤枠に箇条書きを入力してください）"; return; }
-
     out.innerHTML = '<span class="loader"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> 生成中…';
-    const provider = providerSel.value;
-    const tone = toneSel.value;
-    const key = keyInput.value.trim();
-    const proxy = proxyInput.value.trim();
-    const prompt = buildPrompt(lines, tone);
 
     try{
-      let text = "";
-      if(provider === "gemini"){
-        if(!key) throw new Error('GeminiのAPIキーを入力してください。');
-        text = await callGemini(key, prompt);
-      }else if(provider === "openai"){
-        if(!key) throw new Error('OpenAIのAPIキーを入力してください。');
-        text = await callOpenAI_viaProxy(proxy, key, prompt);
-      }else{
-        if(!key) throw new Error('ClaudeのAPIキーを入力してください。');
-        text = await callAnthropic_viaProxy(proxy, key, prompt);
-      }
-      out.textContent = fitLengthJa((text || "").trim(),160,220) || "（生成できませんでした）";
+      const prompt = buildPrompt(lines, toneSel.value);
+      const text = await callGemini(prompt);
+      out.textContent = fitLengthJa((text||"").trim(),160,220) || "（生成できませんでした）";
       ok.style.display='block'; ok.textContent = "生成に成功しました。";
     }catch(e){
       out.textContent = "生成に失敗しました。『簡易生成（擬似）』もお使いください。";
@@ -236,9 +191,12 @@
     }
   }
 
+  // ====== イベント ======
   document.getElementById('generate').addEventListener('click', generate);
   document.getElementById('fallback').addEventListener('click', ()=>{ out.textContent = fitLengthJa(pseudoGenerate(bullets.value),160,220); });
-  document.getElementById('sample').addEventListener('click', ()=>{ bullets.value=['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\\n'); });
+  document.getElementById('sample').addEventListener('click', ()=>{ bullets.value=['10/12　お買い物イベント（しまむら）','10/20　施設創立30周年','朝晩冷え込み'].join('\n'); persist(); });
+
+  // 初期入力が空ならサンプルセット
   if(!bullets.value) document.getElementById('sample').click();
 </script>
 </body>

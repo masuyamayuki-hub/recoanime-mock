@@ -45,7 +45,7 @@
   <section class="card">
     <h2>① CSVアップロード</h2>
     <input type="file" id="csvFile" accept=".csv">
-    <button class="btn" id="loadSample">サンプルCSVを読み込む</button>
+    <button class="btn" id="loadSample">サンプルを入力</button>
     <div style="max-height:300px;overflow:auto;margin-top:8px;">
       <table id="csvTable" style="display:none"></table>
     </div>
@@ -92,44 +92,46 @@
 </main>
 
 <script>
-// ===== CSV読み込み =====
 const $ = s => document.querySelector(s);
-function parseCSV(text){return text.trim().split(/\r?\n/).map(r=>r.split(','));}
-$("#csvFile").addEventListener("change", async e=>{
-  const file=e.target.files?.[0]; if(!file)return;
-  const text=await file.text();
-  buildTable(parseCSV(text));
-});
+const WORKER_URL="https://wispy-paper-5feb.masuyama-yuki.workers.dev";
+
+// ===== サンプル入力 =====
 $("#loadSample").addEventListener("click",()=>{
-  const sample="氏名,比較対象値,今回値\n山田 太郎,65,72\n佐藤 花子,50,48";
-  buildTable(parseCSV(sample));
+  const samples=[
+    {氏名:"山田 太郎",比較対象値:65,今回値:72},
+    {氏名:"佐藤 花子",比較対象値:50,今回値:48},
+    {氏名:"高橋 次郎",比較対象値:75,今回値:80}
+  ];
+  buildTable(["氏名","比較対象値","今回値"], samples.map(s=>[s.氏名,s.比較対象値,s.今回値]));
+  // 最初の行を自動反映
+  $("#name").value=samples[0].氏名;
+  $("#prev").value=samples[0].比較対象値;
+  $("#curr").value=samples[0].今回値;
 });
-function buildTable(rows){
-  const table=$("#csvTable"); table.innerHTML=''; table.style.display='table';
-  const header=rows.shift();
-  const thead=document.createElement("thead"); const trh=document.createElement("tr");
-  header.forEach(h=>{const th=document.createElement("th"); th.textContent=h; trh.appendChild(th)});
-  thead.appendChild(trh); table.appendChild(thead);
+
+function buildTable(header,rows){
+  const table=$("#csvTable");
+  table.innerHTML="";
+  table.style.display="table";
+  const thead=document.createElement("thead");
+  const trh=document.createElement("tr");
+  header.forEach(h=>{const th=document.createElement("th");th.textContent=h;trh.appendChild(th)});
+  thead.appendChild(trh);
   const tbody=document.createElement("tbody");
   rows.forEach(r=>{
     const tr=document.createElement("tr");
-    r.forEach(c=>{const td=document.createElement("td"); td.textContent=c; tr.appendChild(td)});
-    tr.addEventListener("click",()=>{setInputs(header,r,tr)});
+    r.forEach(c=>{const td=document.createElement("td");td.textContent=c;tr.appendChild(td)});
+    tr.addEventListener("click",()=>{
+      document.querySelectorAll(".selected").forEach(e=>e.classList.remove("selected"));
+      tr.classList.add("selected");
+      $("#name").value=r[0];$("#prev").value=r[1];$("#curr").value=r[2];
+    });
     tbody.appendChild(tr);
   });
-  table.appendChild(tbody);
-}
-function setInputs(header,row,tr){
-  document.querySelectorAll(".selected").forEach(e=>e.classList.remove("selected"));
-  tr.classList.add("selected");
-  const map={}; header.forEach((h,i)=>map[h]=row[i]);
-  $("#name").value=map["氏名"]||row[0]||"";
-  $("#prev").value=map["比較対象値"]||row[1]||"";
-  $("#curr").value=map["今回値"]||row[2]||"";
+  table.appendChild(thead);table.appendChild(tbody);
 }
 
 // ===== Gemini呼び出し =====
-const WORKER_URL="https://wispy-paper-5feb.masuyama-yuki.workers.dev";
 $("#genGemini").addEventListener("click",async()=>{
   const name=$("#name").value.trim(),prev=$("#prev").value.trim(),curr=$("#curr").value.trim();
   const noticeText=$("#noticeText").value.trim(),personalNote=$("#personalNote").value.trim();
@@ -140,21 +142,21 @@ $("#genGemini").addEventListener("click",async()=>{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({name,prev,curr,noticeText,personalNote})
     });
-    const txt=await res.text(); console.log("Worker response:",txt);
-    let data; try{data=JSON.parse(txt);}catch{throw new Error("JSON parse error: "+txt);}
-    if(res.ok && data.text){out.value=data.text.trim();}
+    const txt=await res.text();console.log("Worker:",txt);
+    let data;try{data=JSON.parse(txt);}catch{throw new Error("JSON parse error:"+txt);}
+    if(res.ok&&data.text){out.value=data.text.trim();}
     else throw new Error(data.error||"生成失敗");
-  }catch(e){console.error(e); out.value="❌ エラー: "+e.message;}
+  }catch(e){console.error(e);out.value="❌ エラー: "+e.message;}
 });
 
 // ===== ダミー動画生成 =====
 $("#startJob").addEventListener("click",async()=>{
-  const name=$("#name").value.trim(); if(!name){alert("氏名を入力してください");return;}
+  const name=$("#name").value.trim();if(!name){alert("氏名を入力してください");return;}
   $("#jobArea").style.display="block";
-  const bar=$("#bar"),log=$("#jobLog"); bar.style.width="0%"; log.textContent="";
+  const bar=$("#bar"),log=$("#jobLog");bar.style.width="0%";log.textContent="";
   const steps=["準備中...","ナレーション作成...","シーン生成...","レンダリング中...","保存完了"];
   for(let i=0;i<steps.length;i++){
-    log.textContent+=steps[i]+"\n"; bar.style.width=((i+1)/steps.length*100)+"%";
+    log.textContent+=steps[i]+"\\n";bar.style.width=((i+1)/steps.length*100)+"%";
     await new Promise(r=>setTimeout(r,600));
   }
   const fname=$("#videoName").value||("recoanime_"+name+".mp4");
@@ -162,7 +164,7 @@ $("#startJob").addEventListener("click",async()=>{
 });
 $("#reset").addEventListener("click",()=>{
   ["name","prev","curr","noticeText","personalNote","resultText","videoName"].forEach(id=>$("#"+id).value="");
-  $("#bar").style.width="0%"; $("#jobLog").textContent=""; $("#videoLink").innerHTML=""; $("#jobArea").style.display="none";
+  $("#bar").style.width="0%";$("#jobLog").textContent="";$("#videoLink").innerHTML="";$("#jobArea").style.display="none";
 });
 </script>
 </body>

@@ -1,420 +1,56 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>リコアニメ：モック（CSV + AIコメント + 動画生成）</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#f7f7fb;
-    --card:#ffffff;
-    --line:#e6e6ef;
-    --text:#111214;
-    --muted:#6b7280;
-    --brand:#2563eb;
-    --brand-weak:#e0e7ff;
-    --ok:#16a34a;
-    --warn:#ca8a04;
-    --danger:#dc2626;
-    --shadow:0 10px 20px rgba(0,0,0,.06);
-    --radius:14px;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0;padding:24px;background:var(--bg);color:var(--text);
-    font-family:'Noto Sans JP', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji';
-  }
-  h1{font-size:22px;margin:0 0 8px}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
-  .wrap{max-width:1200px;margin:0 auto;display:grid;gap:20px}
-  @media(min-width:980px){.wrap{grid-template-columns:1.1fr 1fr}}
-  .card{
-    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:16px;box-shadow:var(--shadow);
-  }
-  .row{display:grid;gap:12px}
-  @media(min-width:640px){.row{grid-template-columns:1fr 1fr}}
-  label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
-  input[type="text"], input[type="number"], textarea, select{
-    width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:14px;
-  }
-  textarea{min-height:120px;resize:vertical}
-  .btn{
-    appearance:none;border:1px solid var(--line);background:#fff;border-radius:999px;
-    padding:10px 14px;font-weight:600;font-size:14px;cursor:pointer;
-    transition:transform .02s ease, box-shadow .2s ease, background .2s ease;
-  }
-  .btn:hover{box-shadow:0 6px 14px rgba(0,0,0,.08)}
-  .btn:active{transform:translateY(1px)}
-  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
-  .btn.success{background:var(--ok);border-color:var(--ok);color:#fff}
-  .btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}
-  .btn.ghost{background:#fff;color:var(--brand);border-color:var(--brand)}
-  .toolbar{display:flex;gap:10px;flex-wrap:wrap}
-  table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  th,td{padding:10px;border-bottom:1px solid var(--line);font-size:13px}
-  th{background:#fafbff;text-align:left;color:#374151}
-  tr:last-child td{border-bottom:none}
-  tr:hover td{background:#fbfbff}
-  .pill{display:inline-flex;align-items:center;gap:6px;background:var(--brand-weak);border-radius:999px;padding:4px 10px;color:#334155;font-size:12px}
-  .muted{color:var(--muted)}
-  .small{font-size:12px}
-  .kbd{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;background:#edf2ff;border:1px solid #dbe4ff;border-bottom-width:2px;padding:2px 6px;border-radius:6px}
-  .divider{height:1px;background:var(--line);margin:12px 0}
-  .progress{height:10px;background:#eef2ff;border-radius:999px;overflow:hidden}
-  .progress>div{height:100%;width:0;background:var(--brand);transition:width .3s ease}
-  .badge{padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #dbe4ff;font-size:12px;color:#334155;font-weight:600}
-  .right{display:flex;justify-content:flex-end}
-  .grid-3{display:grid;gap:10px}
-  @media(min-width:820px){.grid-3{grid-template-columns:repeat(3,1fr)}}
-  .notice{background:#fff7ed;border:1px solid #fed7aa;padding:10px;border-radius:10px}
-  .footer{margin-top:12px;color:var(--muted);font-size:12px}
-  .selectable{cursor:pointer}
-  .selected{outline:2px solid var(--brand)}
-</style>
-</head>
-<body>
-  <header class="wrap" style="margin-bottom:10px">
-    <div>
-      <h1>リコアニメ：新モック</h1>
-      <div class="sub">CSV取込 → AIコメント生成 → ご家族向けアニメ生成（ダミー）までを 1 画面で確認できます。</div>
-      <div class="toolbar">
-        <span class="pill">MVP検証用</span>
-        <span class="pill">クライアントサイドのみ</span>
-        <span class="pill">Gemini 風モック</span>
-      </div>
-    </div>
-  </header>
-
-  <main class="wrap">
-    <!-- Left Column -->
-    <section class="card">
-      <h2 style="margin:0 0 8px">① CSVアップロード &amp; 一覧</h2>
-      <div class="sub">氏名・BIの「比較対象値 / 今回値」を含むCSVを読み込みます（UTF-8）。</div>
-      <div class="row">
-        <div>
-          <label>CSVファイル</label>
-          <input type="file" id="csvFile" accept=".csv">
-        </div>
-        <div>
-          <label>ヘッダ行あり</label>
-          <select id="hasHeader">
-            <option value="1" selected>はい</option>
-            <option value="0">いいえ</option>
-          </select>
-        </div>
-      </div>
-      <div class="toolbar" style="margin-top:10px">
-        <button class="btn" id="loadSample">サンプルCSVを読み込む</button>
-        <span class="muted small">行をクリックすると右側の入力欄に反映されます。</span>
-      </div>
-      <div id="csvTableWrap" style="margin-top:12px; max-height:360px; overflow:auto">
-        <table id="csvTable" aria-label="CSV preview table" style="display:none"></table>
-      </div>
-      <div class="footer">※ シンプルCSVパーサーを内蔵。ダブルクオートや改行もサポート（RFC4180準拠の簡易版）。</div>
-    </section>
-
-    <!-- Right Column -->
-    <section class="card">
-      <h2 style="margin:0 0 8px">② AIコメント生成（Gemini 風）</h2>
-      <div class="sub">「比較対象値」と「今回値」から 3 種のコメントを生成します（数値変化／施設お知らせ／様子ちょいコメ）。</div>
-
-      <details class="notice" style="margin-bottom:10px">
-        <summary><strong>API連携の想定（モック）</strong></summary>
-        <div class="small" style="margin-top:8px">
-          実運用では Gemini API を呼び出します。本モックではフロント内で擬似生成します。<br>
-          <div class="row" style="margin-top:6px">
-            <div>
-              <label>Gemini API Key（ダミー入力欄）</label>
-              <input type="text" id="apiKey" placeholder="AIza...">
-            </div>
-            <div>
-              <label>Model</label>
-              <input type="text" id="modelName" value="gemini-1.5-pro" >
-            </div>
-          </div>
-          <div class="small muted" style="margin-top:6px">※ ここで入力しても外部送信されません（擬似）。</div>
-        </div>
-      </details>
-
-      <div class="row">
-        <div>
-          <label>氏名</label>
-          <input type="text" id="name" placeholder="例：山田 太郎">
-        </div>
-        <div>
-          <label>対象者ID（任意）</label>
-          <input type="text" id="userId" placeholder="例：U0001">
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:8px">
-        <div>
-          <label>比較対象値</label>
-          <input type="number" id="prev" placeholder="例：65">
-        </div>
-        <div>
-          <label>今回値</label>
-          <input type="number" id="curr" placeholder="例：70">
-        </div>
-      </div>
-
-      <div class="grid-3" style="margin-top:10px">
-        <div>
-          <label>施設からのお知らせ（任意）</label>
-          <textarea id="noticeText" placeholder="例：面会時間の変更について..."></textarea>
-        </div>
-        <div>
-          <label>様子（ちょいコメ）※任意</label>
-          <textarea id="personalNote" placeholder="例：歩行練習後も笑顔で過ごされました。"></textarea>
-        </div>
-        <div>
-          <label>生成結果（編集可能）</label>
-          <textarea id="resultText" placeholder="ここに生成結果が入ります"></textarea>
-        </div>
-      </div>
-
-      <div class="toolbar" style="margin-top:10px">
-        <button class="btn primary" id="genChange">① 数値の変化説明</button>
-        <button class="btn" id="genNotice">② 施設からのお知らせ</button>
-        <button class="btn" id="genPersonal">③ 利用者の様子（個別）</button>
-        <button class="btn ghost" id="genAll">一括生成（上記3種）</button>
-      </div>
-
-      <div class="divider"></div>
-
-      <h2 style="margin:0 0 8px">③ ご家族向けアニメ生成（ダミー）</h2>
-      <div class="sub">コメント文と測定値から「動画生成ジョブ」を登録する想定。ここでは擬似進行＆URL発行のみを行います。</div>
-
-      <div class="row">
-        <div>
-          <label>ファイル名（出力想定）</label>
-          <input type="text" id="videoName" placeholder="recoanime_yamada_2025-10.mp4">
-        </div>
-        <div>
-          <label>画面テーマ</label>
-          <select id="theme">
-            <option value="classic" selected>クラシック（青系）</option>
-            <option value="warm">あたたかみ（橙系）</option>
-            <option value="mono">医療ドキュメント（モノトーン）</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="toolbar" style="margin-top:12px">
-        <button class="btn success" id="startJob">アニメ生成を依頼する</button>
-        <button class="btn warn" id="reset">リセット</button>
-      </div>
-
-      <div id="jobArea" style="margin-top:12px;display:none">
-        <div class="small muted">ジョブ進行状況</div>
-        <div class="progress" aria-label="progress"><div id="bar"></div></div>
-        <div id="jobLog" class="small" style="margin-top:8px;white-space:pre-wrap"></div>
-        <div id="videoLink" style="margin-top:8px"></div>
-      </div>
-    </section>
-
-    <!-- Full width: Mini Help -->
-    <section class="card" style="grid-column:1/-1">
-      <h3 style="margin:0 0 8px">ヘルプ</h3>
-      <ul class="small">
-        <li>CSVヘッダは例：<span class="kbd">氏名</span> / <span class="kbd">比較対象値</span> / <span class="kbd">今回値</span> を含むと自動マッピングされます。</li>
-        <li>ヘッダがない場合でも1列目=氏名、2列目=比較対象値、3列目=今回値として読み込みます。</li>
-        <li>行をクリックすると右側の入力欄へ反映 → コメント生成 → アニメ生成の順で試せます。</li>
-      </ul>
-    </section>
-  </main>
-
 <script>
-// -----------------------------
-// Utilities
-// -----------------------------
-const $ = (sel, root=document) => root.querySelector(sel);
-const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-function escapeHtml(str){return str.replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]))}
+const WORKER_URL = "https://wispy-paper-5feb.masuyama-yuki.workers.dev";
 
 // -----------------------------
-// Simple CSV Parser (handles quotes/newlines; RFC4180-ish)
+// Gemini Worker呼び出し関数
 // -----------------------------
-function parseCSV(text, hasHeader=true){
-  const rows=[]; let i=0, field='', row=[], inQuotes=false;
-  while(i<text.length){
-    const c=text[i];
-    if(c==='\"'){
-      if(inQuotes && text[i+1]==='\"'){ field+='\"'; i+=2; continue; }
-      inQuotes=!inQuotes; i++; continue;
-    }
-    if(!inQuotes && (c===',')){
-      row.push(field); field=''; i++; continue;
-    }
-    if(!inQuotes && (c==='\n' || c==='\r')){
-      if(c==='\r' && text[i+1]==='\n') i++;
-      row.push(field); rows.push(row); field=''; row=[]; i++; continue;
-    }
-    field+=c; i++;
-  }
-  row.push(field); rows.push(row);
-  if(hasHeader){
-    const header = rows.shift().map(h=>h.trim());
-    return {header, rows};
-  }else{
-    return {header:null, rows};
-  }
-}
+async function generateViaGemini() {
+  const name = $("#name").value.trim();
+  const prev = $("#prev").value.trim();
+  const curr = $("#curr").value.trim();
+  const noticeText = $("#noticeText").value.trim();
+  const personalNote = $("#personalNote").value.trim();
 
-// -----------------------------
-// CSV UI
-// -----------------------------
-const csvFile = $("#csvFile");
-const csvTable = $("#csvTable");
-const csvTableWrap = $("#csvTableWrap");
-const hasHeaderSel = $("#hasHeader");
-const loadSampleBtn = $("#loadSample");
-
-function buildTable(header, rows){
-  csvTable.innerHTML='';
-  csvTable.style.display='table';
-  const thead=document.createElement('thead');
-  const trh=document.createElement('tr');
-  const cols = header ? header : ['氏名','比較対象値','今回値'];
-  cols.forEach(h=>{ const th=document.createElement('th'); th.textContent=h || ''; trh.appendChild(th); });
-  thead.appendChild(trh);
-  const tbody=document.createElement('tbody');
-  rows.forEach((r, idx)=>{
-    const tr=document.createElement('tr');
-    tr.classList.add('selectable');
-    r.slice(0, cols.length).forEach((cell)=>{
-      const td=document.createElement('td'); td.textContent=cell; tr.appendChild(td);
-    });
-    tr.addEventListener('click', ()=> selectRow(cols, r, tr));
-    tbody.appendChild(tr);
-  });
-  csvTable.appendChild(thead); csvTable.appendChild(tbody);
-}
-
-function selectRow(cols, row, tr){
-  $$(".selected", csvTable).forEach(el=>el.classList.remove('selected'));
-  tr.classList.add('selected');
-  const map = {};
-  cols.forEach((c,i)=> map[c.trim()] = row[i]);
-  // Best-effort mapping
-  $("#name").value = map['氏名'] || map['名前'] || map['name'] || row[0] || '';
-  $("#prev").value = map['比較対象値'] || map['前回'] || map['baseline'] || row[1] || '';
-  $("#curr").value = map['今回値'] || map['今回'] || map['current'] || row[2] || '';
-}
-
-csvFile.addEventListener('change', async (e)=>{
-  const file=e.target.files?.[0]; if(!file) return;
-  const text=await file.text();
-  const parsed=parseCSV(text, hasHeaderSel.value==='1');
-  buildTable(parsed.header || ['氏名','比較対象値','今回値'], parsed.rows);
-});
-
-loadSampleBtn.addEventListener('click', ()=>{
-  const sample = "氏名,比較対象値,今回値,備考\n山田 太郎,65,72,歩行距離が伸びています\n佐藤 花子,50,48,体調に留意\n高橋 次郎,75,80,家庭での体操も継続";
-  const parsed=parseCSV(sample, true);
-  buildTable(parsed.header, parsed.rows);
-});
-
-// -----------------------------
-// AI Comment Generation (mock)
-// -----------------------------
-function numberOrNull(x){ const n=parseFloat(x); return Number.isFinite(n) ? n : null; }
-function genChange(prev, curr, name){
-  const p=numberOrNull(prev), c=numberOrNull(curr);
-  if(p==null || c==null) return "測定値が未入力のため、変化説明を生成できません。";
-  const diff = (c - p);
-  const sign = diff>0 ? '上がりました' : (diff<0 ? '下がりました' : '変化はありませんでした');
-  const nuance = diff>0 ? '状態が良好に向かっています' : (diff<0 ? '最近の体調や活動量の影響が考えられます');
-  const tone = diff>=5 ? '大きな改善が見られます' : (diff<=-5 ? '大きな変動のため注意が必要です' : '緩やかな変化です');
-  return `${name || 'ご利用者さま'}のBIは、前回${p}点から今回${c}点へ${Math.abs(diff)}点${sign}。${tone}。${diff>=0 ? '引き続き無理のない範囲で歩行・移乗の練習を続けてまいります。' : '体調や安全面を確認しながら、無理のない範囲で支援内容を調整します。'}`;
-}
-function genNoticeText(txt){
-  if(!txt || !txt.trim()) return "本日は特に施設からのお知らせはありません。";
-  return `【施設からのお知らせ】${txt.trim()}`;
-}
-function genPersonalText(txt){
-  if(!txt || !txt.trim()) return "本日のご様子について特記事項はありません。安定してお過ごしです。";
-  return `【本日のご様子】${txt.trim()}`;
-}
-
-$("#genChange").addEventListener('click', ()=>{
-  $("#resultText").value = genChange($("#prev").value, $("#curr").value, $("#name").value);
-});
-$("#genNotice").addEventListener('click', ()=>{
-  const existing = $("#resultText").value;
-  const add = genNoticeText($("#noticeText").value);
-  $("#resultText").value = existing ? existing + "\\n\\n" + add : add;
-});
-$("#genPersonal").addEventListener('click', ()=>{
-  const existing = $("#resultText").value;
-  const add = genPersonalText($("#personalNote").value);
-  $("#resultText").value = existing ? existing + "\\n\\n" + add : add;
-});
-$("#genAll").addEventListener('click', ()=>{
-  const parts = [
-    genChange($("#prev").value, $("#curr").value, $("#name").value),
-    genNoticeText($("#noticeText").value),
-    genPersonalText($("#personalNote").value)
-  ];
-  $("#resultText").value = parts.join("\\n\\n");
-});
-
-// -----------------------------
-// Video Generation (dummy job)
-// -----------------------------
-const jobArea = $("#jobArea");
-const bar = $("#bar");
-const jobLog = $("#jobLog");
-const videoLink = $("#videoLink");
-
-$("#startJob").addEventListener('click', async ()=>{
-  // Validate
-  const name=$("#name").value.trim();
-  const prev=$("#prev").value.trim();
-  const curr=$("#curr").value.trim();
-  const comment=$("#resultText").value.trim();
-  if(!name || !prev || !curr || !comment){
-    alert("氏名・比較対象値・今回値・生成結果のいずれかが未入力です。");
+  if (!name || !prev || !curr) {
+    alert("氏名・比較対象値・今回値を入力してください。");
     return;
   }
-  jobArea.style.display='block';
-  bar.style.width='0%';
-  jobLog.textContent = "ジョブを登録しました…\\nUIテーマ: " + $("#theme").value + "\\n";
-  videoLink.innerHTML='';
-  // Simulate steps
-  const steps=[
-    "CSV/コメントを検証中…",
-    "ナレーション原稿を整形…",
-    "シーン構成を自動生成…",
-    "レンダリング待機キューに投入…",
-    "レンダリング中…",
-    "最終出力を保存中…"
-  ];
-  for(let i=0;i<steps.length;i++){
-    jobLog.textContent += steps[i] + "\\n";
-    bar.style.width = Math.round(((i+1)/steps.length)*85) + "%";
-    await sleep(600);
-  }
-  // Finish
-  await sleep(400);
-  bar.style.width = "100%";
-  const fname = $("#videoName").value.trim() || ("recoanime_" + (name||'user') + "_" + new Date().toISOString().slice(0,10) + ".mp4");
-  const fakeUrl = "/videos/" + encodeURIComponent(fname);
-  jobLog.textContent += "完了：動画が出力されました。\\n";
-  videoLink.innerHTML = `<span class="badge">ダミーURL</span> <a href="${fakeUrl}" target="_blank" rel="noopener"> ${escapeHtml(fakeUrl)} </a>`;
-});
 
-$("#reset").addEventListener('click', ()=>{
-  ["name","userId","prev","curr","noticeText","personalNote","resultText","videoName"].forEach(id=>$("#"+id).value="");
-  bar.style.width='0%'; jobLog.textContent=''; videoLink.innerHTML=''; jobArea.style.display='none';
-  $$(".selected", csvTable).forEach(el=>el.classList.remove('selected'));
-});
+  $("#resultText").value = "⏳ Geminiに問い合わせ中…";
+
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, prev, curr, noticeText, personalNote })
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error("APIエラー: " + err);
+    }
+
+    const data = await res.json();
+    if (data.text) {
+      $("#resultText").value = data.text.trim();
+    } else {
+      $("#resultText").value = "⚠️ コメントを生成できませんでした。";
+    }
+  } catch (e) {
+    console.error(e);
+    $("#resultText").value = "❌ エラーが発生しました: " + e.message;
+  }
+}
+
+// -----------------------------
+// 既存イベントにGemini生成ボタンを追加
+// -----------------------------
+const toolbar = document.querySelector(".toolbar");
+if (toolbar) {
+  const btnGemini = document.createElement("button");
+  btnGemini.className = "btn primary";
+  btnGemini.textContent = "🌐 Geminiで生成";
+  btnGemini.addEventListener("click", generateViaGemini);
+  toolbar.appendChild(btnGemini);
+}
 </script>
-</body>
-</html>
